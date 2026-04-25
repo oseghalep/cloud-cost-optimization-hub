@@ -67,7 +67,7 @@ make down	Stop all services
 make logs	View container logs
 make test	Run all tests
 🎁 Contributor Incentive
-$25 gift card for the first 100 contributors with a merged PR. See CONTRIBUTING.md.
+$50 gift card for the first 50 contributors with a merged PR. See CONTRIBUTING.md.
 
 📄 License
 Apache 2.0
