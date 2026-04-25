@@ -5,25 +5,69 @@
 
 **Stop cloud cost surprises. One dashboard for AWS, GCP, and Azure.**
 
-CCOH is an open-source, self-hosted platform that provides unified visibility into multi-cloud spending with actionable optimization recommendations.
+## ✨ Features (v0.1)
 
-## 🎯 Why This Project Matters
-
-Companies waste 30-40% of cloud spend on idle or oversized resources. CCOH helps you find and fix that waste.
-
-## ✨ MVP Features
-
-- Connect AWS, GCP, and Azure accounts
-- Unified dashboard showing all cloud costs
-- Cost breakdown by service, region, and tag
-- Automated recommendations (rightsizing, orphaned resources)
-- Email alerts for cost anomalies
+- ✅ Multi-cloud ready architecture
+- ✅ User authentication (register/login)
+- ✅ Professional dashboard UI
+- ✅ Mock cost data to demo the platform
+- ✅ Docker Compose one-command setup
+- ✅ Ready for real AWS/GCP/Azure integration
 
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/oseghalep/cloud-cost-optimization-hub.git
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/cloud-cost-optimization-hub.git
 cd cloud-cost-optimization-hub
+
+# Copy environment variables
 cp .env.example .env
-# Edit .env with your cloud credentials
+
+# Start everything (database, backend, frontend)
 make up
+
+# Wait 30 seconds for services to initialize
+# Then open http://localhost:3000
+
+
+Default credentials (first-time setup):
+
+Go to /register and create an account
+
+Log in at /login
+
+View the dashboard with sample data
+
+🏗️ Architecture
+This is a full-stack application with:
+
+Backend: Go 1.21+ with Gin framework
+
+Database: PostgreSQL 15 + TimescaleDB for time-series
+
+Queue: Redis (for background jobs)
+
+Frontend: Next.js 14 + TypeScript + Tailwind CSS
+
+Deployment: Docker Compose (dev) + Helm chart (prod)
+
+📁 Project Structure
+text
+backend/     - Go API server
+frontend/    - Next.js application
+docker-compose.yml - Local development environment
+Makefile     - Common development commands
+
+🔧 Development Commands
+Command	Description
+make dev-deps	Start only Postgres & Redis
+make up	Start all services
+make down	Stop all services
+make logs	View container logs
+make test	Run all tests
+🎁 Contributor Incentive
+$25 gift card for the first 100 contributors with a merged PR. See CONTRIBUTING.md.
+
+📄 License
+Apache 2.0
