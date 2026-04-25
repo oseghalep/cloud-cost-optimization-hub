@@ -18,7 +18,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/cloud-cost-optimization-hub.git
+git clone https://github.com/oseghalep/cloud-cost-optimization-hub.git
 cd cloud-cost-optimization-hub
 
 # Copy environment variables
