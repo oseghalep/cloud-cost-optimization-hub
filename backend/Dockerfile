@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
@@ -14,10 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the API binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/bin/api ./cmd/api
-
-# Build the migrator binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/bin/migrator ./cmd/migrator
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/api ./cmd/api
 
 # Runtime stage
 FROM alpine:latest
@@ -26,13 +23,9 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-# Copy binaries from builder
-COPY --from=builder /app/bin/api /app/api
-COPY --from=builder /app/bin/migrator /app/migrator
-COPY --from=builder /app/migrations /app/migrations
+# Copy binary from builder
+COPY --from=builder /app/api /app/api
 
-# Expose port
 EXPOSE 8080
 
-# Default command (can be overridden)
 CMD ["/app/api"]
