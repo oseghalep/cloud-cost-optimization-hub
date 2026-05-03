@@ -1,0 +1,85 @@
+Complete Startup Guide
+Step 1: Start Docker Containers (PostgreSQL + Redis)
+Open Terminal 1 (PowerShell or Command Prompt as Administrator):
+
+bash
+cd C:\Users\paulo\Documents\cloud-cost-optimization-hub
+docker-compose up -d
+Wait about 30 seconds for the databases to initialize.
+
+Verify they're running:
+
+bash
+docker ps
+You should see both ccoh-postgres and ccoh-redis running.
+
+Step 2: Start the Backend
+Open Terminal 2:
+
+bash
+cd C:\Users\paulo\Documents\cloud-cost-optimization-hub\backend
+go run cmd/api/main.go
+Leave this terminal running. You should see:
+
+text
+Starting Cloud Cost Optimization Hub API Server
+Database connected successfully
+Server listening on port 8080
+Step 3: Start the Frontend
+Open Terminal 3:
+
+bash
+cd C:\Users\paulo\Documents\cloud-cost-optimization-hub\frontend
+npm run dev
+Leave this terminal running. You should see:
+
+text
+▲ Next.js 15.5.15
+- Local:        http://localhost:3000
+Step 4: Access the Application
+Open your browser to: http://localhost:3000
+
+Quick Reference - All Commands in One Place
+bash
+# Terminal 1 - Docker (databases)
+cd C:\Users\paulo\Documents\cloud-cost-optimization-hub
+docker-compose up -d
+
+# Terminal 2 - Backend
+cd C:\Users\paulo\Documents\cloud-cost-optimization-hub\backend
+go run cmd/api/main.go
+
+# Terminal 3 - Frontend
+cd C:\Users\paulo\Documents\cloud-cost-optimization-hub\frontend
+npm run dev
+Stopping Everything
+When you're done:
+
+Terminal 3: Press Ctrl + C to stop frontend
+
+Terminal 2: Press Ctrl + C to stop backend
+
+Terminal 1: Run docker-compose down to stop databases
+
+Troubleshooting
+If port 8080 is already in use:
+bash
+# Check what's using port 8080
+netstat -ano | findstr :8080
+
+# Kill the process (replace PID with the number from above)
+taskkill /PID [PID_NUMBER] /F
+If port 3000 is already in use:
+bash
+netstat -ano | findstr :3000
+taskkill /PID [PID_NUMBER] /F
+If database connection fails:
+Make sure Docker is running and containers are up:
+
+bash
+docker-compose restart postgres redis
+If migrations need to be run again:
+bash
+cd C:\Users\paulo\Documents\cloud-cost-optimization-hub\backend
+go run cmd/migrator/main.go -direction up
+Once both are running, go to http://localhost:3000 and log in. Then navigate to http://localhost:3000/accounts to add your AWS account!

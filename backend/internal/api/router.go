@@ -2,19 +2,24 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
+	"gorm.io/gorm"
+
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/internal/api/handlers"
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/internal/api/middleware"
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/internal/repository/postgres"
-	"github.com/rs/zerolog"
-	"gorm.io/gorm"
+	"github.com/oseghalep/cloud-cost-optimization-hub/backend/internal/services/cost_ingestion"
+	"github.com/oseghalep/cloud-cost-optimization-hub/backend/internal/services/recommendations"
 )
 
 type Router struct {
-	engine           *gin.Engine
-	authMiddleware   *middleware.AuthMiddleware
-	authHandler      *handlers.AuthHandler
-	dashboardHandler *handlers.DashboardHandler
-	accountHandler   *handlers.AccountHandler
+	engine                *gin.Engine
+	authMiddleware        *middleware.AuthMiddleware
+	authHandler           *handlers.AuthHandler
+	dashboardHandler      *handlers.DashboardHandler
+	accountHandler        *handlers.AccountHandler
+	awsCredsHandler       *handlers.AWSCredentialsHandler
+	recommendationHandler *handlers.RecommendationHandler
 }
 
 func NewRouter(
@@ -29,10 +34,19 @@ func NewRouter(
 	recommendationRepo := postgres.NewRecommendationRepository(db)
 	alertRepo := postgres.NewAlertRepository(db)
 
+	// Initialize AWS service
+	awsService := cost_ingestion.NewAWSService(accountRepo, costRepo, logger)
+
+	// Initialize recommendation engine
+	recommendationEngine := recommendations.NewRecommendationEngine(costRepo, recommendationRepo, accountRepo, logger)
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userRepo, jwtSecret)
 	dashboardHandler := handlers.NewDashboardHandler(costRepo, recommendationRepo, alertRepo)
 	accountHandler := handlers.NewAccountHandler(accountRepo)
+	awsCredsHandler := handlers.NewAWSCredentialsHandler(accountRepo, awsService)
+	recommendationHandler := handlers.NewRecommendationHandler(recommendationRepo, recommendationEngine)
+
 	authMiddleware := middleware.NewAuthMiddleware(jwtSecret)
 
 	engine := gin.New()
@@ -41,11 +55,13 @@ func NewRouter(
 	engine.Use(gin.Recovery())
 
 	router := &Router{
-		engine:           engine,
-		authMiddleware:   authMiddleware,
-		authHandler:      authHandler,
-		dashboardHandler: dashboardHandler,
-		accountHandler:   accountHandler,
+		engine:                engine,
+		authMiddleware:        authMiddleware,
+		authHandler:           authHandler,
+		dashboardHandler:      dashboardHandler,
+		accountHandler:        accountHandler,
+		awsCredsHandler:       awsCredsHandler,
+		recommendationHandler: recommendationHandler,
 	}
 
 	router.setupRoutes()
@@ -78,9 +94,21 @@ func (r *Router) setupRoutes() {
 		protected.GET("/accounts", r.accountHandler.List)
 		protected.GET("/accounts/:id", r.accountHandler.Get)
 		protected.DELETE("/accounts/:id", r.accountHandler.Delete)
+
+		// AWS Account routes
+		protected.POST("/aws/accounts", r.awsCredsHandler.AddAWSAccount)
+		protected.POST("/aws/test-connection", r.awsCredsHandler.TestConnection)
+
+		// Recommendation routes
+		protected.GET("/recommendations", r.recommendationHandler.List)
+		protected.GET("/recommendations/account/:accountId", r.recommendationHandler.GetByAccount)
+		protected.PATCH("/recommendations/:id/dismiss", r.recommendationHandler.Dismiss)
+		protected.POST("/recommendations/:id/apply", r.recommendationHandler.Apply)
+		protected.POST("/recommendations/generate", r.recommendationHandler.Generate)
 	}
 }
 
-func (r *Router) Run(addr string) error {
-	return r.engine.Run(addr)
+// GetEngine returns the underlying gin engine
+func (r *Router) GetEngine() *gin.Engine {
+	return r.engine
 }

@@ -72,6 +72,12 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between px-6 py-4">
           <h1 className="text-xl font-bold text-white">Cloud Cost Optimization Hub</h1>
           <div className="flex items-center gap-4">
+            <a
+              href="/accounts"
+              className="text-slate-400 hover:text-white transition"
+            >
+              Add Account
+            </a>
             <button
               onClick={() => {
                 localStorage.removeItem('token')
@@ -164,8 +170,11 @@ export default function DashboardPage() {
 
         {/* Recommendations Section */}
         <div className="bg-slate-900 rounded-lg border border-slate-800">
-          <div className="px-6 py-4 border-b border-slate-800">
+          <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
             <h2 className="text-lg font-semibold text-white">Top Recommendations</h2>
+            <a href="/recommendations" className="text-blue-400 hover:text-blue-300 text-sm">
+              View All →
+            </a>
           </div>
           <div className="divide-y divide-slate-800">
             {data?.top_recommendations && data.top_recommendations.length > 0 ? (
@@ -181,15 +190,18 @@ export default function DashboardPage() {
                     <p className="text-green-400 font-semibold">
                       Save {formatCurrency(rec.potential_savings)}
                     </p>
-                    <button className="mt-2 text-sm text-blue-400 hover:text-blue-300">
+                    <a href="/recommendations" className="mt-2 text-sm text-blue-400 hover:text-blue-300 inline-block">
                       View Details
-                    </button>
+                    </a>
                   </div>
                 </div>
               ))
             ) : (
               <div className="px-6 py-8 text-center text-slate-500">
-                No recommendations available. Connect cloud accounts to see savings opportunities.
+                No recommendations yet.{' '}
+                <a href="/recommendations" className="text-blue-400 hover:text-blue-300">
+                  Generate recommendations
+                </a>
               </div>
             )}
           </div>

@@ -7,7 +7,7 @@ import (
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/pkg/logger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func Connect(cfg *config.Config, log *logger.Logger) (*gorm.DB, error) {
@@ -16,15 +16,17 @@ func Connect(cfg *config.Config, log *logger.Logger) (*gorm.DB, error) {
 		cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort,
 	)
 
-	var gormLogger logger.Interface
+	var gormLogLevel gormlogger.LogLevel
 	if cfg.IsProduction() {
-		gormLogger = logger.Default.LogMode(logger.Silent)
+		gormLogLevel = gormlogger.Silent
 	} else {
-		gormLogger = logger.Default.LogMode(logger.Info)
+		gormLogLevel = gormlogger.Info
 	}
 
+	gormLog := gormlogger.Default.LogMode(gormLogLevel)
+
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: gormLogger,
+		Logger: gormLog,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)

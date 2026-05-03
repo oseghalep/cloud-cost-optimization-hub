@@ -1,29 +1,42 @@
-version: '3.9'
 services:
-  api:
-    build: ./backend
-    ports:
-      - '8080:8080'
-    env_file:
-      - .env.example
-    depends_on:
-      - db
-  frontend:
-    build: ./frontend
-    ports:
-      - '3000:3000'
-    depends_on:
-      - api
-  db:
-    image: postgres:15
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: ccoh-postgres
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: cloud_costs
+      POSTGRES_USER: ccoh
+      POSTGRES_PASSWORD: ccoh123
+      POSTGRES_DB: ccoh
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ccoh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ccoh-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ccoh-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ccoh-network
 
 volumes:
-  db_data:
+  postgres_data:
+  redis_data:
+
+networks:
+  ccoh-network:
+    driver: bridge

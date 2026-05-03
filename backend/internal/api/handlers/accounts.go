@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/internal/models"
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/internal/repository/postgres"
 )
@@ -38,8 +39,15 @@ func (h *AccountHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Parse userID to UUID
+	parsedUserID, err := uuid.Parse(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
 	account := &models.CloudAccount{
-		UserID:      parseUUID(userID),
+		UserID:      parsedUserID,
 		Provider:    req.Provider,
 		Name:        req.Name,
 		AccountID:   req.AccountID,
@@ -94,9 +102,4 @@ func (h *AccountHandler) Delete(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Account deleted successfully"})
-}
-
-// Helper function - will add proper UUID parsing later
-func parseUUID(id string) interface{} {
-	return id
 }
