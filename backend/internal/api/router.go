@@ -20,6 +20,7 @@ type Router struct {
 	accountHandler        *handlers.AccountHandler
 	awsCredsHandler       *handlers.AWSCredentialsHandler
 	recommendationHandler *handlers.RecommendationHandler
+	multiCloudHandler     *handlers.MultiCloudHandler
 }
 
 func NewRouter(
@@ -36,6 +37,13 @@ func NewRouter(
 
 	// Initialize AWS service
 	awsService := cost_ingestion.NewAWSService(accountRepo, costRepo, logger)
+
+	// Create GCP and Azure services
+	gcpService := cost_ingestion.NewGCPService(accountRepo, costRepo, logger)
+	azureService := cost_ingestion.NewAzureService(accountRepo, costRepo, logger)
+
+	// Create multi-cloud handler
+	multiCloudHandler := handlers.NewMultiCloudHandler(accountRepo, gcpService, azureService)
 
 	// Initialize recommendation engine
 	recommendationEngine := recommendations.NewRecommendationEngine(costRepo, recommendationRepo, accountRepo, logger)
@@ -62,6 +70,7 @@ func NewRouter(
 		accountHandler:        accountHandler,
 		awsCredsHandler:       awsCredsHandler,
 		recommendationHandler: recommendationHandler,
+		multiCloudHandler:     multiCloudHandler,
 	}
 
 	router.setupRoutes()
@@ -98,6 +107,10 @@ func (r *Router) setupRoutes() {
 		// AWS Account routes
 		protected.POST("/aws/accounts", r.awsCredsHandler.AddAWSAccount)
 		protected.POST("/aws/test-connection", r.awsCredsHandler.TestConnection)
+
+		// GCP and Azure Account routes
+		protected.POST("/gcp/accounts", r.multiCloudHandler.AddGCPAccount)
+		protected.POST("/azure/accounts", r.multiCloudHandler.AddAzureAccount)
 
 		// Recommendation routes
 		protected.GET("/recommendations", r.recommendationHandler.List)
