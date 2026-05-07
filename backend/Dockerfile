@@ -1,5 +1,5 @@
-# Build stage
-FROM golang:1.23-alpine AS builder
+# Build stage - using Go 1.26 to match your dependencies
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
