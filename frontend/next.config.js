@@ -1,20 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
-  images: {
-    domains: ['localhost'],
-  },
   async rewrites() {
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+    // Ensure protocol is present
+    if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+      apiUrl = 'https://' + apiUrl;
+    }
     return [
       {
         source: '/api/:path*',
-        destination: process.env.NEXT_PUBLIC_API_URL 
-          ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1/:path*`
-          : 'http://localhost:8080/api/v1/:path*',
+        destination: `${apiUrl}/api/v1/:path*`,
       },
-    ]
+    ];
   },
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;
