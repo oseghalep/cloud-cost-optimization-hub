@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/pkg/config"
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/pkg/logger"
@@ -11,11 +12,22 @@ import (
 )
 
 func Connect(cfg *config.Config, log *logger.Logger) (*gorm.DB, error) {
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
-		cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort,
-	)
+	var dsn string
 
+	// Prefer Railway's DATABASE_URL if available
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		dsn = dbURL
+		log.Info("Using DATABASE_URL for connection")
+	} else {
+		// Fallback to individual config variables (local development)
+		dsn = fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+			cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort,
+		)
+		log.Info("Using individual DB config variables")
+	}
+
+	// Set GORM log level based on environment
 	var gormLogLevel gormlogger.LogLevel
 	if cfg.IsProduction() {
 		gormLogLevel = gormlogger.Silent
