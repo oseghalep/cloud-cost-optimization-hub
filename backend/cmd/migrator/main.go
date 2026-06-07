@@ -4,13 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/internal/models"
-	"github.com/oseghalep/cloud-cost-optimization-hub/backend/pkg/config"
 )
 
 func main() {
@@ -19,19 +19,44 @@ func main() {
 	flag.StringVar(&direction, "direction", "up", "Migration direction (up or down)")
 	flag.Parse()
 
-	// Load .env file
+	// Load .env file (for local development)
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using environment variables")
 	}
 
-	// Load configuration
-	cfg := config.Load()
-
-	// Build DSN
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
-		cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort,
-	)
+	// Build DSN – prefer DATABASE_URL (Railway) first
+	var dsn string
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		dsn = dbURL
+		log.Println("Using DATABASE_URL")
+	} else {
+		// Fallback to individual config variables (local development)
+		dbHost := os.Getenv("DB_HOST")
+		if dbHost == "" {
+			dbHost = "localhost"
+		}
+		dbPort := os.Getenv("DB_PORT")
+		if dbPort == "" {
+			dbPort = "5432"
+		}
+		dbUser := os.Getenv("DB_USER")
+		if dbUser == "" {
+			dbUser = "ccoh"
+		}
+		dbPassword := os.Getenv("DB_PASSWORD")
+		if dbPassword == "" {
+			dbPassword = "ccoh123"
+		}
+		dbName := os.Getenv("DB_NAME")
+		if dbName == "" {
+			dbName = "ccoh"
+		}
+		dsn = fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+			dbHost, dbUser, dbPassword, dbName, dbPort,
+		)
+		log.Println("Using individual DB variables")
+	}
 
 	// Connect to database
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
