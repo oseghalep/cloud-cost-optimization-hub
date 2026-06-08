@@ -1,13 +1,12 @@
 # Cloud Cost Observability & Optimization Hub (CCOH)
 
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://cloud-cost-optimization-hub.vercel.app/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![GitHub contributors](https://img.shields.io/github/contributors/oseghalep/cloud-cost-optimization-hub)](https://github.com/oseghalep/cloud-cost-optimization-hub/graphs/contributors)
 [![First Contributions](https://img.shields.io/badge/first--contributions-welcome-brightgreen)](CONTRIBUTING.md)
 
 **Stop cloud cost surprises. One dashboard for AWS, GCP, and Azure.**
-
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://cloud-cost-optimization-hub.vercel.app/)
 
 ## ✨ Features (v0.1)
 
