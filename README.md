@@ -7,6 +7,8 @@
 
 **Stop cloud cost surprises. One dashboard for AWS, GCP, and Azure.**
 
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://cloud-cost-optimization-hub-vayi.vercel.app)
+
 ## ✨ Features (v0.1)
 
 - ✅ Multi-cloud ready architecture
@@ -68,8 +70,11 @@ make up	Start all services
 make down	Stop all services
 make logs	View container logs
 make test	Run all tests
+
+## 🤝 Contributors Wanted
 🎁 Contributor Incentive
-$50 gift card for the first 50 contributors with a merged PR. See CONTRIBUTING.md.
+$50 gift card for the first 50 contributors with a merged PR.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 📄 License
 Apache 2.0
