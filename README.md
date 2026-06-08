@@ -7,7 +7,7 @@
 
 **Stop cloud cost surprises. One dashboard for AWS, GCP, and Azure.**
 
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://cloud-cost-optimization-hub-vayi.vercel.app)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://cloud-cost-optimization-hub.vercel.app/)
 
 ## ✨ Features (v0.1)
 
