@@ -72,7 +72,7 @@ make test	Run all tests
 
 ## 🤝 Contributors Wanted
 🎁 Contributor Incentive
-$50 gift card for the first 50 contributors with a merged PR.
+$25 gift card for the first 50 contributors with a merged PR.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 📄 License
