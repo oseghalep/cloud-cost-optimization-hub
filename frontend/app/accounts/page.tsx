@@ -3,11 +3,15 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import { withMinDuration } from '@/lib/utils'
+import { AccountRowSkeleton } from '@/components/ui/Skeleton'
+import { Spinner } from '@/components/ui/Spinner'
 
 export default function AccountsPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('aws')
   const [loading, setLoading] = useState(false)
+  const [accountsLoading, setAccountsLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [existingAccounts, setExistingAccounts] = useState<any[]>([])
@@ -50,10 +54,12 @@ export default function AccountsPage() {
 
   const fetchAccounts = async () => {
     try {
-      const response = await api.get('/accounts')
+      const response = await withMinDuration(api.get('/accounts'), 1000)
       setExistingAccounts(response.data)
     } catch (error) {
       console.error('Failed to fetch accounts:', error)
+    } finally {
+      setAccountsLoading(false)
     }
   }
 
@@ -179,8 +185,17 @@ export default function AccountsPage() {
 
       <main className="p-6 max-w-4xl mx-auto">
         {/* Existing Accounts Section */}
-        {existingAccounts.length > 0 && (
+        {accountsLoading ? (
           <div className="mb-8">
+            <h2 className="text-lg font-semibold text-white mb-4">Connected Accounts</h2>
+            <div className="space-y-2">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <AccountRowSkeleton key={i} />
+              ))}
+            </div>
+          </div>
+        ) : existingAccounts.length > 0 && (
+          <div className="mb-8 animate-fade-in">
             <h2 className="text-lg font-semibold text-white mb-4">Connected Accounts</h2>
             <div className="space-y-2">
               {existingAccounts.map((account) => (
@@ -365,8 +380,9 @@ export default function AccountsPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2 px-4 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center gap-2 py-2 px-4 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
+                  {loading && <Spinner />}
                   {loading ? 'Adding Account...' : 'Add AWS Account'}
                 </button>
               </form>
@@ -452,8 +468,9 @@ export default function AccountsPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center gap-2 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
+                  {loading && <Spinner />}
                   {loading ? 'Adding Account...' : 'Add GCP Account'}
                 </button>
               </form>
@@ -551,8 +568,9 @@ export default function AccountsPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center gap-2 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
+                  {loading && <Spinner />}
                   {loading ? 'Adding Account...' : 'Add Azure Account'}
                 </button>
               </form>

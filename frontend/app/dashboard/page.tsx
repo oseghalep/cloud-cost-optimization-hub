@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { getDashboardSummary, DashboardSummary } from '@/lib/api'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, withMinDuration } from '@/lib/utils'
+import { Skeleton, StatCardSkeleton, ChartSkeleton, RecRowSkeleton } from '@/components/ui/Skeleton'
 import {
   LineChart,
   Line,
@@ -36,7 +37,7 @@ export default function DashboardPage() {
 
     const fetchData = async () => {
       try {
-        const summary = await getDashboardSummary()
+        const summary = await withMinDuration(getDashboardSummary(), 1000)
         setData(summary)
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)
@@ -51,14 +52,6 @@ export default function DashboardPage() {
 
     fetchData()
   }, [router])
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
 
   // Prepare pie chart data
   const pieData = data?.cost_by_service
@@ -93,6 +86,33 @@ export default function DashboardPage() {
       </header>
 
       <main className="p-6">
+        {loading ? (
+          <>
+            {/* Skeleton: Stat cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <StatCardSkeleton key={i} />
+              ))}
+            </div>
+            {/* Skeleton: Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <ChartSkeleton />
+              <ChartSkeleton />
+            </div>
+            {/* Skeleton: Top recommendations */}
+            <div className="bg-slate-900 rounded-lg border border-slate-800">
+              <div className="px-6 py-4 border-b border-slate-800">
+                <Skeleton className="h-5 w-44" />
+              </div>
+              <div className="divide-y divide-slate-800">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <RecRowSkeleton key={i} />
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+        <div className="animate-fade-in">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
@@ -206,6 +226,8 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+        </div>
+        )}
       </main>
     </div>
   )

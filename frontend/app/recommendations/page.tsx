@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, withMinDuration } from '@/lib/utils'
 import { Recommendation } from '@/types'
+import { RecCardSkeleton } from '@/components/ui/Skeleton'
+import { Spinner } from '@/components/ui/Spinner'
 
 export default function RecommendationsPage() {
   const router = useRouter()
@@ -12,6 +14,8 @@ export default function RecommendationsPage() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [filter, setFilter] = useState('all')
+  // id + action of the row currently being applied/dismissed (per-row loading)
+  const [actioning, setActioning] = useState<{ id: string; action: 'apply' | 'dismiss' } | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -24,7 +28,7 @@ export default function RecommendationsPage() {
 
   const fetchRecommendations = async () => {
     try {
-      const response = await api.get('/recommendations')
+      const response = await withMinDuration(api.get('/recommendations'), 1000)
       setRecommendations(response.data)
     } catch (error) {
       console.error('Failed to fetch recommendations:', error)
@@ -47,20 +51,26 @@ export default function RecommendationsPage() {
   }
 
   const handleDismiss = async (id: string) => {
+    setActioning({ id, action: 'dismiss' })
     try {
       await api.patch(`/recommendations/${id}/dismiss`)
       setRecommendations(recommendations.filter(r => r.id !== id))
     } catch (error) {
       console.error('Failed to dismiss recommendation:', error)
+    } finally {
+      setActioning(null)
     }
   }
 
   const handleApply = async (id: string) => {
+    setActioning({ id, action: 'apply' })
     try {
       await api.post(`/recommendations/${id}/apply`)
       setRecommendations(recommendations.filter(r => r.id !== id))
     } catch (error) {
       console.error('Failed to apply recommendation:', error)
+    } finally {
+      setActioning(null)
     }
   }
 
@@ -123,10 +133,12 @@ export default function RecommendationsPage() {
             </p>
           </div>
           <button
+            type="button"
             onClick={handleGenerate}
             disabled={generating}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
+            {generating && <Spinner />}
             {generating ? 'Generating...' : 'Generate Recommendations'}
           </button>
         </div>
@@ -170,8 +182,10 @@ export default function RecommendationsPage() {
 
         {/* Recommendations List */}
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-400"></div>
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <RecCardSkeleton key={i} />
+            ))}
           </div>
         ) : filteredRecommendations.length === 0 ? (
           <div className="text-center py-12 bg-slate-900 rounded-lg border border-slate-800">
@@ -181,7 +195,7 @@ export default function RecommendationsPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-fade-in">
             {filteredRecommendations.map((rec) => (
               <div key={rec.id} className="bg-slate-900 rounded-lg border border-slate-800 p-6">
                 <div className="flex items-start justify-between">
@@ -223,18 +237,33 @@ export default function RecommendationsPage() {
                   
                   {rec.status === 'pending' && (
                     <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => handleApply(rec.id)}
-                        className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition"
-                      >
-                        Apply
-                      </button>
-                      <button
-                        onClick={() => handleDismiss(rec.id)}
-                        className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition"
-                      >
-                        Dismiss
-                      </button>
+                      {(() => {
+                        const isApplying = actioning?.id === rec.id && actioning.action === 'apply'
+                        const isDismissing = actioning?.id === rec.id && actioning.action === 'dismiss'
+                        const busy = actioning?.id === rec.id
+                        return (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleApply(rec.id)}
+                              disabled={busy}
+                              className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isApplying && <Spinner className="h-3.5 w-3.5" />}
+                              {isApplying ? 'Applying...' : 'Apply'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDismiss(rec.id)}
+                              disabled={busy}
+                              className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isDismissing && <Spinner className="h-3.5 w-3.5" />}
+                              {isDismissing ? 'Dismissing...' : 'Dismiss'}
+                            </button>
+                          </>
+                        )
+                      })()}
                     </div>
                   )}
                 </div>

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { register } from '@/lib/api'
+import { Spinner } from '@/components/ui/Spinner'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -91,8 +92,9 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex w-full items-center justify-center gap-2 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
+            {loading && <Spinner />}
             {loading ? 'Creating account...' : 'Create Account'}
           </button>
         </form>
