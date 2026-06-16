@@ -2,11 +2,42 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import api from '@/lib/api'
 import { withMinDuration } from '@/lib/utils'
 import { AccountRowSkeleton } from '@/components/ui/Skeleton'
 import { Spinner } from '@/components/ui/Spinner'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { Copy, Check } from 'lucide-react'
+
+// IAM policy required for cost ingestion (display-only, copyable).
+const AWS_IAM_POLICY = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetDimensionValues"
+      ],
+      "Resource": "*"
+    }
+  ]
+}`
+
+// AWS account form validation schema.
+const awsSchema = z.object({
+  name: z.string().min(1, 'Account name is required'),
+  account_id: z.string().regex(/^\d{12}$/, 'Account ID must be exactly 12 digits'),
+  access_key_id: z
+    .string()
+    .regex(/^AKIA[A-Z0-9]{16}$/, 'Must be "AKIA" followed by 16 uppercase letters/digits'),
+  secret_access_key: z.string().min(20, 'Secret Access Key must be at least 20 characters'),
+  region: z.string().min(1, 'Region is required'),
+})
+type AwsFormValues = z.infer<typeof awsSchema>
 
 export default function AccountsPage() {
   const router = useRouter()
@@ -16,15 +47,39 @@ export default function AccountsPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [existingAccounts, setExistingAccounts] = useState<any[]>([])
+  const [copiedPolicy, setCopiedPolicy] = useState(false)
 
-  // AWS Form State
-  const [awsForm, setAwsForm] = useState({
-    name: '',
-    account_id: '',
-    access_key_id: '',
-    secret_access_key: '',
-    region: 'us-east-1',
+  const copyPolicy = async () => {
+    try {
+      await navigator.clipboard.writeText(AWS_IAM_POLICY)
+      setCopiedPolicy(true)
+      setTimeout(() => setCopiedPolicy(false), 2000)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  // AWS form: react-hook-form + Zod validation
+  const {
+    register: registerAws,
+    handleSubmit: handleAwsSubmit,
+    reset: resetAws,
+    watch: watchAws,
+    clearErrors: clearAwsErrors,
+    formState: { errors: awsErrors, isValid: awsIsValid },
+  } = useForm<AwsFormValues>({
+    resolver: zodResolver(awsSchema),
+    mode: 'onChange',
+    defaultValues: {
+      name: '',
+      account_id: '',
+      access_key_id: '',
+      secret_access_key: '',
+      region: '',
+    },
   })
+  // Live field values, used to hide a field's error once it's cleared (empty).
+  const awsValues = watchAws()
 
   // GCP Form State
   const [gcpForm, setGcpForm] = useState({
@@ -53,6 +108,13 @@ export default function AccountsPage() {
     fetchAccounts()
   }, [router])
 
+  // Reset validation errors and banners whenever the active tab changes.
+  useEffect(() => {
+    clearAwsErrors()
+    setError('')
+    setSuccess('')
+  }, [activeTab, clearAwsErrors])
+
   const fetchAccounts = async () => {
     try {
       const response = await withMinDuration(api.get('/accounts'), 1000)
@@ -64,27 +126,16 @@ export default function AccountsPage() {
     }
   }
 
-  // AWS Handlers
-  const handleAwsChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setAwsForm({ ...awsForm, [e.target.name]: e.target.value })
-  }
-
-  const handleAwsSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // AWS submit (only runs after Zod validation passes)
+  const onAwsSubmit = async (data: AwsFormValues) => {
     setLoading(true)
     setError('')
     setSuccess('')
 
     try {
-      await api.post('/aws/accounts', awsForm)
+      await api.post('/aws/accounts', data)
       setSuccess('AWS account added successfully! Costs will be synced shortly.')
-      setAwsForm({
-        name: '',
-        account_id: '',
-        access_key_id: '',
-        secret_access_key: '',
-        region: 'us-east-1',
-      })
+      resetAws()
       fetchAccounts()
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to add AWS account')
@@ -278,20 +329,20 @@ export default function AccountsPage() {
 
             {/* AWS Form */}
             {activeTab === 'aws' && (
-              <form onSubmit={handleAwsSubmit} className="space-y-4">
+              <form onSubmit={handleAwsSubmit(onAwsSubmit)} className="space-y-4" noValidate>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Account Name
                   </label>
                   <input
                     type="text"
-                    name="name"
-                    value={awsForm.name}
-                    onChange={handleAwsChange}
-                    required
+                    {...registerAws('name')}
                     className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="Production AWS Account"
+                    placeholder="e.g. Production AWS Account"
                   />
+                  {awsErrors.name && awsValues.name && (
+                    <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{awsErrors.name.message}</p>
+                  )}
                 </div>
 
                 <div>
@@ -300,13 +351,14 @@ export default function AccountsPage() {
                   </label>
                   <input
                     type="text"
-                    name="account_id"
-                    value={awsForm.account_id}
-                    onChange={handleAwsChange}
-                    required
+                    inputMode="numeric"
+                    {...registerAws('account_id')}
                     className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="123456789012"
+                    placeholder="e.g. 123456789012 (12 digits)"
                   />
+                  {awsErrors.account_id && awsValues.account_id && (
+                    <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{awsErrors.account_id.message}</p>
+                  )}
                 </div>
 
                 <div>
@@ -315,13 +367,13 @@ export default function AccountsPage() {
                   </label>
                   <input
                     type="text"
-                    name="access_key_id"
-                    value={awsForm.access_key_id}
-                    onChange={handleAwsChange}
-                    required
+                    {...registerAws('access_key_id')}
                     className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="AKIA..."
+                    placeholder="e.g. AKIAIOSFODNN7EXAMPLE"
                   />
+                  {awsErrors.access_key_id && awsValues.access_key_id && (
+                    <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{awsErrors.access_key_id.message}</p>
+                  )}
                 </div>
 
                 <div>
@@ -330,13 +382,13 @@ export default function AccountsPage() {
                   </label>
                   <input
                     type="password"
-                    name="secret_access_key"
-                    value={awsForm.secret_access_key}
-                    onChange={handleAwsChange}
-                    required
+                    {...registerAws('secret_access_key')}
                     className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="..."
+                    placeholder="e.g. wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
                   />
+                  {awsErrors.secret_access_key && awsValues.secret_access_key && (
+                    <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{awsErrors.secret_access_key.message}</p>
+                  )}
                 </div>
 
                 <div>
@@ -344,11 +396,10 @@ export default function AccountsPage() {
                     Region
                   </label>
                   <select
-                    name="region"
-                    value={awsForm.region}
-                    onChange={handleAwsChange}
+                    {...registerAws('region')}
                     className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
+                    <option value="">-- Select Region --</option>
                     <option value="us-east-1">US East (N. Virginia)</option>
                     <option value="us-east-2">US East (Ohio)</option>
                     <option value="us-west-1">US West (N. California)</option>
@@ -362,30 +413,38 @@ export default function AccountsPage() {
                 </div>
 
                 <div className="pt-2">
-                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Required IAM Permissions</h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">Required IAM Permissions</h3>
+                    <button
+                      type="button"
+                      onClick={copyPolicy}
+                      className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
+                    >
+                      {copiedPolicy ? (
+                        <>
+                          <Check className="h-3.5 w-3.5" /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" /> Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
                     Your AWS access key needs these permissions:
                   </p>
                   <pre className="bg-slate-100 dark:bg-slate-800 p-3 rounded-lg text-xs text-slate-700 dark:text-slate-300 overflow-x-auto">
-{`{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ce:GetCostAndUsage",
-        "ce:GetDimensionValues"
-      ],
-      "Resource": "*"
-    }
-  ]
-}`}
+{AWS_IAM_POLICY}
                   </pre>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Read-only access to AWS Cost Explorer. It can read your cost data only, never view or change your resources.
+                  </p>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !awsIsValid}
                   className="inline-flex w-full items-center justify-center gap-2 py-2 px-4 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading && <Spinner />}
