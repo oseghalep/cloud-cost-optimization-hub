@@ -9,7 +9,7 @@ export function Skeleton({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={clsx(
-        'animate-pulse rounded bg-slate-700/50 motion-reduce:animate-none',
+        'animate-pulse rounded bg-slate-200 dark:bg-slate-700/50 motion-reduce:animate-none',
         className
       )}
     />
@@ -19,7 +19,7 @@ export function Skeleton({ className }: { className?: string }) {
 /** Skeleton for a dashboard stat card. Matches the real card's footprint. */
 export function StatCardSkeleton() {
   return (
-    <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
+    <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
       <Skeleton className="h-4 w-24 mb-3" />
       <Skeleton className="h-9 w-32" />
     </div>
@@ -29,7 +29,7 @@ export function StatCardSkeleton() {
 /** Skeleton for a dashboard chart panel (line or pie). */
 export function ChartSkeleton() {
   return (
-    <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
+    <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
       <Skeleton className="h-5 w-40 mb-4" />
       <Skeleton className="h-80 w-full" />
     </div>
@@ -52,7 +52,7 @@ export function RecRowSkeleton() {
 /** Full recommendation card skeleton for the Recommendations page. */
 export function RecCardSkeleton() {
   return (
-    <div className="bg-slate-900 rounded-lg border border-slate-800 p-6">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700 p-6">
       <div className="flex items-center gap-3 mb-3">
         <Skeleton className="h-6 w-24" />
         <Skeleton className="h-6 w-16" />
@@ -75,7 +75,7 @@ export function RecCardSkeleton() {
 /** Skeleton row for a connected cloud account on the Accounts page. */
 export function AccountRowSkeleton() {
   return (
-    <div className="bg-slate-900 rounded-lg border border-slate-800 p-4 flex items-center justify-between">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700 p-4 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <Skeleton className="h-6 w-14" />
         <div>

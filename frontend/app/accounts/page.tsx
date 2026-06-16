@@ -6,6 +6,7 @@ import api from '@/lib/api'
 import { withMinDuration } from '@/lib/utils'
 import { AccountRowSkeleton } from '@/components/ui/Skeleton'
 import { Spinner } from '@/components/ui/Spinner'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
 
 export default function AccountsPage() {
   const router = useRouter()
@@ -151,31 +152,33 @@ export default function AccountsPage() {
 
   const getProviderBadgeColor = (provider: string) => {
     switch(provider) {
-      case 'aws': return 'bg-orange-500/20 text-orange-400'
-      case 'gcp': return 'bg-blue-500/20 text-blue-400'
-      case 'azure': return 'bg-blue-600/20 text-blue-400'
-      default: return 'bg-gray-500/20 text-gray-400'
+      case 'aws': return 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
+      case 'gcp': return 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+      case 'azure': return 'bg-cyan-600/20 text-cyan-700 dark:text-cyan-400'
+      default: return 'bg-gray-500/20 text-gray-600 dark:text-gray-400'
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-10">
-        <div className="flex items-center justify-between px-6 py-4">
-          <h1 className="text-xl font-bold text-white">Cloud Cost Optimization Hub</h1>
-          <div className="flex items-center gap-4">
-            <a href="/dashboard" className="text-slate-400 hover:text-white transition">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
+        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Cloud Cost Optimization Hub</h1>
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+            <a href="/dashboard" className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">
               Dashboard
             </a>
-            <a href="/recommendations" className="text-slate-400 hover:text-white transition">
+            <a href="/recommendations" className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">
               Recommendations
             </a>
+            <ThemeToggle />
             <button
+              type="button"
               onClick={() => {
                 localStorage.removeItem('token')
                 router.push('/login')
               }}
-              className="text-slate-400 hover:text-white transition"
+              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
             >
               Sign Out
             </button>
@@ -183,11 +186,11 @@ export default function AccountsPage() {
         </div>
       </header>
 
-      <main className="p-6 max-w-4xl mx-auto">
+      <main className="p-4 sm:p-6 max-w-4xl mx-auto">
         {/* Existing Accounts Section */}
         {accountsLoading ? (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4">Connected Accounts</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Connected Accounts</h2>
             <div className="space-y-2">
               {Array.from({ length: 2 }).map((_, i) => (
                 <AccountRowSkeleton key={i} />
@@ -196,21 +199,21 @@ export default function AccountsPage() {
           </div>
         ) : existingAccounts.length > 0 && (
           <div className="mb-8 animate-fade-in">
-            <h2 className="text-lg font-semibold text-white mb-4">Connected Accounts</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Connected Accounts</h2>
             <div className="space-y-2">
               {existingAccounts.map((account) => (
-                <div key={account.id} className="bg-slate-900 rounded-lg border border-slate-800 p-4 flex items-center justify-between">
+                <div key={account.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700 p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className={`px-2 py-1 rounded text-xs font-medium ${getProviderBadgeColor(account.provider)}`}>
                       {account.provider.toUpperCase()}
                     </span>
                     <div>
-                      <p className="text-white font-medium">{account.name}</p>
-                      <p className="text-slate-400 text-sm">Account ID: {account.account_id}</p>
+                      <p className="text-slate-900 dark:text-white font-medium">{account.name}</p>
+                      <p className="text-slate-600 dark:text-slate-400 text-sm">Account ID: {account.account_id}</p>
                     </div>
                   </div>
                   <span className={`text-xs px-2 py-1 rounded ${
-                    account.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                    account.status === 'active' ? 'bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'
                   }`}>
                     {account.status}
                   </span>
@@ -221,35 +224,38 @@ export default function AccountsPage() {
         )}
 
         {/* Add Account Section with Tabs */}
-        <div className="bg-slate-900 rounded-lg border border-slate-800">
-          <div className="border-b border-slate-800">
-            <div className="flex">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
+          <div className="border-b border-slate-200 dark:border-slate-800">
+            <div className="flex overflow-x-auto">
               <button
+                type="button"
                 onClick={() => setActiveTab('aws')}
                 className={`px-6 py-3 text-sm font-medium transition ${
                   activeTab === 'aws'
-                    ? 'text-orange-400 border-b-2 border-orange-400'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'text-orange-700 dark:text-orange-400 border-b-2 border-orange-600 dark:border-orange-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 AWS
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('gcp')}
                 className={`px-6 py-3 text-sm font-medium transition ${
                   activeTab === 'gcp'
-                    ? 'text-blue-400 border-b-2 border-blue-400'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Google Cloud
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('azure')}
                 className={`px-6 py-3 text-sm font-medium transition ${
                   activeTab === 'azure'
-                    ? 'text-blue-400 border-b-2 border-blue-400'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'text-cyan-700 dark:text-cyan-400 border-b-2 border-cyan-600 dark:border-cyan-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Azure
@@ -259,13 +265,13 @@ export default function AccountsPage() {
 
           <div className="p-6">
             {error && (
-              <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg">
+              <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg">
                 {error}
               </div>
             )}
 
             {success && (
-              <div className="mb-4 bg-green-500/10 border border-green-500/50 text-green-400 px-4 py-2 rounded-lg">
+              <div className="mb-4 bg-green-500/10 border border-green-500/50 text-green-700 dark:text-green-400 px-4 py-2 rounded-lg">
                 {success}
               </div>
             )}
@@ -274,7 +280,7 @@ export default function AccountsPage() {
             {activeTab === 'aws' && (
               <form onSubmit={handleAwsSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Account Name
                   </label>
                   <input
@@ -283,13 +289,13 @@ export default function AccountsPage() {
                     value={awsForm.name}
                     onChange={handleAwsChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                     placeholder="Production AWS Account"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     AWS Account ID
                   </label>
                   <input
@@ -298,13 +304,13 @@ export default function AccountsPage() {
                     value={awsForm.account_id}
                     onChange={handleAwsChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                     placeholder="123456789012"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Access Key ID
                   </label>
                   <input
@@ -313,13 +319,13 @@ export default function AccountsPage() {
                     value={awsForm.access_key_id}
                     onChange={handleAwsChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                     placeholder="AKIA..."
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Secret Access Key
                   </label>
                   <input
@@ -328,20 +334,20 @@ export default function AccountsPage() {
                     value={awsForm.secret_access_key}
                     onChange={handleAwsChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                     placeholder="..."
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Region
                   </label>
                   <select
                     name="region"
                     value={awsForm.region}
                     onChange={handleAwsChange}
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="us-east-1">US East (N. Virginia)</option>
                     <option value="us-east-2">US East (Ohio)</option>
@@ -356,11 +362,11 @@ export default function AccountsPage() {
                 </div>
 
                 <div className="pt-2">
-                  <h3 className="text-sm font-medium text-slate-300 mb-2">Required IAM Permissions</h3>
-                  <p className="text-xs text-slate-400 mb-2">
+                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Required IAM Permissions</h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
                     Your AWS access key needs these permissions:
                   </p>
-                  <pre className="bg-slate-800 p-3 rounded-lg text-xs text-slate-300 overflow-x-auto">
+                  <pre className="bg-slate-100 dark:bg-slate-800 p-3 rounded-lg text-xs text-slate-700 dark:text-slate-300 overflow-x-auto">
 {`{
   "Version": "2012-10-17",
   "Statement": [
@@ -392,7 +398,7 @@ export default function AccountsPage() {
             {activeTab === 'gcp' && (
               <form onSubmit={handleGcpSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Account Name
                   </label>
                   <input
@@ -401,13 +407,13 @@ export default function AccountsPage() {
                     value={gcpForm.name}
                     onChange={handleGcpChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Production GCP Account"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Project ID
                   </label>
                   <input
@@ -416,13 +422,13 @@ export default function AccountsPage() {
                     value={gcpForm.project_id}
                     onChange={handleGcpChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="my-project-123"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Client Email
                   </label>
                   <input
@@ -431,13 +437,13 @@ export default function AccountsPage() {
                     value={gcpForm.client_email}
                     onChange={handleGcpChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="service-account@project.iam.gserviceaccount.com"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Private Key (JSON)
                   </label>
                   <textarea
@@ -446,7 +452,7 @@ export default function AccountsPage() {
                     onChange={handleGcpChange}
                     required
                     rows={6}
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder='{"type": "service_account", "project_id": "...", ...}'
                   />
                   <p className="text-xs text-slate-500 mt-1">
@@ -455,11 +461,11 @@ export default function AccountsPage() {
                 </div>
 
                 <div className="pt-2">
-                  <h3 className="text-sm font-medium text-slate-300 mb-2">Required GCP Permissions</h3>
-                  <p className="text-xs text-slate-400">
+                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Required GCP Permissions</h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
                     Your service account needs the following roles:
                   </p>
-                  <ul className="text-xs text-slate-400 list-disc list-inside mt-2">
+                  <ul className="text-xs text-slate-600 dark:text-slate-400 list-disc list-inside mt-2">
                     <li>roles/billing.viewer</li>
                     <li>roles/billing.costsViewer</li>
                   </ul>
@@ -480,7 +486,7 @@ export default function AccountsPage() {
             {activeTab === 'azure' && (
               <form onSubmit={handleAzureSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Account Name
                   </label>
                   <input
@@ -489,13 +495,13 @@ export default function AccountsPage() {
                     value={azureForm.name}
                     onChange={handleAzureChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Production Azure Account"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Subscription ID
                   </label>
                   <input
@@ -504,13 +510,13 @@ export default function AccountsPage() {
                     value={azureForm.subscription_id}
                     onChange={handleAzureChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Tenant ID
                   </label>
                   <input
@@ -519,13 +525,13 @@ export default function AccountsPage() {
                     value={azureForm.tenant_id}
                     onChange={handleAzureChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Client ID
                   </label>
                   <input
@@ -534,13 +540,13 @@ export default function AccountsPage() {
                     value={azureForm.client_id}
                     onChange={handleAzureChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Client Secret
                   </label>
                   <input
@@ -549,17 +555,17 @@ export default function AccountsPage() {
                     value={azureForm.client_secret}
                     onChange={handleAzureChange}
                     required
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="..."
                   />
                 </div>
 
                 <div className="pt-2">
-                  <h3 className="text-sm font-medium text-slate-300 mb-2">Required Azure Permissions</h3>
-                  <p className="text-xs text-slate-400">
+                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Required Azure Permissions</h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
                     Your service principal needs the following role:
                   </p>
-                  <ul className="text-xs text-slate-400 list-disc list-inside mt-2">
+                  <ul className="text-xs text-slate-600 dark:text-slate-400 list-disc list-inside mt-2">
                     <li>Reader role on the subscription</li>
                     <li>Cost Management Reader</li>
                   </ul>
@@ -568,7 +574,7 @@ export default function AccountsPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="inline-flex w-full items-center justify-center gap-2 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex w-full items-center justify-center gap-2 py-2 px-4 bg-cyan-600 hover:bg-cyan-700 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading && <Spinner />}
                   {loading ? 'Adding Account...' : 'Add Azure Account'}

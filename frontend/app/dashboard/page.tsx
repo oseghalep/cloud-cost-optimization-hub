@@ -6,6 +6,9 @@ import axios from 'axios'
 import { getDashboardSummary, DashboardSummary } from '@/lib/api'
 import { formatCurrency, withMinDuration } from '@/lib/utils'
 import { Skeleton, StatCardSkeleton, ChartSkeleton, RecRowSkeleton } from '@/components/ui/Skeleton'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { useTheme } from '@/components/theme/ThemeProvider'
+import { DollarSign, Lightbulb, TrendingDown, Bell } from 'lucide-react'
 import {
   LineChart,
   Line,
@@ -27,6 +30,11 @@ export default function DashboardPage() {
   const router = useRouter()
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+  const gridColor = isDark ? '#334155' : '#e2e8f0'
+  const axisColor = isDark ? '#94a3b8' : '#64748b'
+  const tooltipBg = isDark ? '#1e293b' : '#ffffff'
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -59,25 +67,27 @@ export default function DashboardPage() {
     : []
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-10">
-        <div className="flex items-center justify-between px-6 py-4">
-          <h1 className="text-xl font-bold text-white">Cloud Cost Optimization Hub</h1>
-          <div className="flex items-center gap-4">
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
+        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Cloud Cost Optimization Hub</h1>
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <a
               href="/accounts"
-              className="text-slate-400 hover:text-white transition"
+              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
             >
               Add Account
             </a>
+            <ThemeToggle />
             <button
+              type="button"
               onClick={() => {
                 localStorage.removeItem('token')
                 localStorage.removeItem('user')
                 router.push('/login')
               }}
-              className="text-slate-400 hover:text-white transition"
+              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
             >
               Sign Out
             </button>
@@ -85,7 +95,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="p-6">
+      <main className="p-4 sm:p-6">
         {loading ? (
           <>
             {/* Skeleton: Stat cards */}
@@ -100,11 +110,11 @@ export default function DashboardPage() {
               <ChartSkeleton />
             </div>
             {/* Skeleton: Top recommendations */}
-            <div className="bg-slate-900 rounded-lg border border-slate-800">
-              <div className="px-6 py-4 border-b border-slate-800">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
                 <Skeleton className="h-5 w-44" />
               </div>
-              <div className="divide-y divide-slate-800">
+              <div className="divide-y divide-slate-200 dark:divide-slate-800">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <RecRowSkeleton key={i} />
                 ))}
@@ -115,37 +125,57 @@ export default function DashboardPage() {
         <div className="animate-fade-in">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
-            <p className="text-slate-400 text-sm mb-1">Total Cost (30d)</p>
-            <p className="text-3xl font-bold text-white">{formatCurrency(data?.total_cost || 0)}</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                <DollarSign className="h-5 w-5" />
+              </span>
+              <p className="text-slate-600 dark:text-slate-400 text-sm">Total Cost (30d)</p>
+            </div>
+            <p className="text-3xl font-bold text-slate-900 dark:text-white">{formatCurrency(data?.total_cost || 0)}</p>
           </div>
-          <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
-            <p className="text-slate-400 text-sm mb-1">Active Recommendations</p>
-            <p className="text-3xl font-bold text-white">{data?.recommendations_count || 0}</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400">
+                <Lightbulb className="h-5 w-5" />
+              </span>
+              <p className="text-slate-600 dark:text-slate-400 text-sm">Active Recommendations</p>
+            </div>
+            <p className="text-3xl font-bold text-slate-900 dark:text-white">{data?.recommendations_count || 0}</p>
           </div>
-          <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
-            <p className="text-slate-400 text-sm mb-1">Potential Savings</p>
-            <p className="text-3xl font-bold text-green-400">{formatCurrency(data?.potential_savings || 0)}</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400">
+                <TrendingDown className="h-5 w-5" />
+              </span>
+              <p className="text-slate-600 dark:text-slate-400 text-sm">Potential Savings</p>
+            </div>
+            <p className="text-3xl font-bold text-green-700 dark:text-green-400">{formatCurrency(data?.potential_savings || 0)}</p>
           </div>
-          <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
-            <p className="text-slate-400 text-sm mb-1">Unread Alerts</p>
-            <p className="text-3xl font-bold text-yellow-400">{data?.unread_alerts || 0}</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+                <Bell className="h-5 w-5" />
+              </span>
+              <p className="text-slate-600 dark:text-slate-400 text-sm">Unread Alerts</p>
+            </div>
+            <p className="text-3xl font-bold text-yellow-700 dark:text-yellow-400">{data?.unread_alerts || 0}</p>
           </div>
         </div>
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Daily Cost Trend */}
-          <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
-            <h2 className="text-lg font-semibold text-white mb-4">Daily Cost Trend</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Daily Cost Trend</h2>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data?.daily_costs || []}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="date" stroke="#94a3b8" />
-                  <YAxis stroke="#94a3b8" tickFormatter={(value) => `$${value}`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                  <XAxis dataKey="date" stroke={axisColor} />
+                  <YAxis stroke={axisColor} tickFormatter={(value) => `$${value}`} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#1e293b', border: 'none' }}
+                    contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${gridColor}`, borderRadius: 8, color: axisColor }}
                     formatter={(value: number) => [`$${value.toFixed(2)}`, 'Cost']}
                   />
                   <Line type="monotone" dataKey="cost" stroke="#3b82f6" strokeWidth={2} dot={false} />
@@ -155,8 +185,8 @@ export default function DashboardPage() {
           </div>
 
           {/* Cost by Service (Pie Chart) */}
-          <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
-            <h2 className="text-lg font-semibold text-white mb-4">Cost by Service</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Cost by Service</h2>
             <div className="h-80">
               {pieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -189,28 +219,28 @@ export default function DashboardPage() {
         </div>
 
         {/* Recommendations Section */}
-        <div className="bg-slate-900 rounded-lg border border-slate-800">
-          <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-white">Top Recommendations</h2>
-            <a href="/recommendations" className="text-blue-400 hover:text-blue-300 text-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
+          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Top Recommendations</h2>
+            <a href="/recommendations" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm">
               View All →
             </a>
           </div>
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-slate-200 dark:divide-slate-800">
             {data?.top_recommendations && data.top_recommendations.length > 0 ? (
               data.top_recommendations.map((rec) => (
                 <div key={rec.id} className="px-6 py-4 flex items-center justify-between">
                   <div>
-                    <h3 className="text-white font-medium">{rec.title}</h3>
-                    <p className="text-slate-400 text-sm mt-1">
+                    <h3 className="text-slate-900 dark:text-white font-medium">{rec.title}</h3>
+                    <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
                       Type: {rec.type}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-green-400 font-semibold">
+                    <p className="text-green-700 dark:text-green-400 font-semibold">
                       Save {formatCurrency(rec.potential_savings)}
                     </p>
-                    <a href="/recommendations" className="mt-2 text-sm text-blue-400 hover:text-blue-300 inline-block">
+                    <a href="/recommendations" className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 inline-block">
                       View Details
                     </a>
                   </div>
@@ -219,7 +249,7 @@ export default function DashboardPage() {
             ) : (
               <div className="px-6 py-8 text-center text-slate-500">
                 No recommendations yet.{' '}
-                <a href="/recommendations" className="text-blue-400 hover:text-blue-300">
+                <a href="/recommendations" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
                   Generate recommendations
                 </a>
               </div>
