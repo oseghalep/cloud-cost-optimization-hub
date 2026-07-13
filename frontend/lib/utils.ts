@@ -21,3 +21,12 @@ export function formatDate(date: string): string {
     day: 'numeric',
   })
 }
+
+/** Resolve a promise, but never faster than `minMs` so loading skeletons stay visible. */
+export async function withMinDuration<T>(promise: Promise<T>, minMs: number = 1000): Promise<T> {
+  const [result] = await Promise.all([
+    promise,
+    new Promise((resolve) => setTimeout(resolve, minMs)),
+  ])
+  return result
+}

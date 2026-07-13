@@ -39,3 +39,12 @@ Thumbs.db
 # Build outputs
 dist/
 build/
+*.tsbuildinfo
+
+# Claude / AI tooling (never commit)
+.claude/
+CLAUDE.md
+.qodo/
+
+# Local-only compose overrides
+docker-compose.override.yml
