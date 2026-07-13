@@ -11,10 +11,21 @@ import (
 )
 
 type RecommendationEngine struct {
-	costRepo           *postgres.CostRepository
-	recommendationRepo *postgres.RecommendationRepository
-	accountRepo        *postgres.CloudAccountRepository
+	costRepo           costRepository
+	recommendationRepo recommendationRepository
+	accountRepo        accountRepository
 	logger             *zerolog.Logger
+}
+
+type costRepository interface{}
+
+type recommendationRepository interface {
+	Create(rec *models.Recommendation) error
+	DeleteByAccountID(accountID string) error
+}
+
+type accountRepository interface {
+	FindAllByUserID(userID string) ([]models.CloudAccount, error)
 }
 
 type RightsizingSuggestion struct {
@@ -46,6 +57,16 @@ func NewRecommendationEngine(
 		accountRepo:        accountRepo,
 		logger:             logger,
 	}
+}
+
+const hoursPerMonth = 24 * 30
+
+func calculateSavings(currentHourlyCost, suggestedHourlyCost float64) float64 {
+	savings := (currentHourlyCost - suggestedHourlyCost) * hoursPerMonth
+	if savings < 0 {
+		return 0
+	}
+	return savings
 }
 
 // GenerateAllRecommendations generates all types of recommendations for a user
@@ -96,7 +117,7 @@ func (e *RecommendationEngine) generateRightsizingRecommendations(account *model
 			ResourceType:     "ec2-instance",
 			CurrentValue:     0.096, // $0.096 per hour for t3.large
 			SuggestedValue:   0.021, // $0.021 per hour for t3.small
-			PotentialSavings: 54.00, // $54 per month
+			PotentialSavings: calculateSavings(0.096, 0.021), // $54 per month
 			Currency:         "USD",
 			Status:           models.RecommendationStatusPending,
 			Metadata: models.JSON{
@@ -117,7 +138,7 @@ func (e *RecommendationEngine) generateRightsizingRecommendations(account *model
 			ResourceType:     "rds-instance",
 			CurrentValue:     0.384, // $0.384 per hour
 			SuggestedValue:   0.192, // $0.192 per hour
-			PotentialSavings: 138.24,
+			PotentialSavings: calculateSavings(0.384, 0.192),
 			Currency:         "USD",
 			Status:           models.RecommendationStatusPending,
 			Metadata: models.JSON{
