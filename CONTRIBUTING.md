@@ -5,12 +5,10 @@ Thank you to everyone who has contributed to Cloud Cost Optimization Hub!
 ## 🌟 All Contributors
 
 (Contributors will be automatically added when their first PR is merged)
+## 🏆 Contributors
 
-## 🏆 Gift Card Recipients
-
-| GitHub User | PR | Date | Status |
-|-------------|-----|------|--------|
-| - | - | - | - |
+- [@wipheg](https://github.com/wipheg) – First PR merged! Added unit tests for recommendation engine. 🎉
+- [@nobledeveloper01](https://github.com/nobledeveloper01) – 3 PRs merged! Added form validation, theme switcher, and loading skeletons. 🏆
 
 ## How to Become a Contributor
 
