@@ -11,6 +11,7 @@ import { AccountRowSkeleton } from '@/components/ui/Skeleton'
 import { Spinner } from '@/components/ui/Spinner'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Copy, Check } from 'lucide-react'
+import { useToast } from '@/components/ui/Toast'
 
 // IAM policy required for cost ingestion (display-only, copyable).
 const AWS_IAM_POLICY = `{
@@ -41,6 +42,7 @@ type AwsFormValues = z.infer<typeof awsSchema>
 
 export default function AccountsPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('aws')
   const [loading, setLoading] = useState(false)
   const [accountsLoading, setAccountsLoading] = useState(true)
@@ -135,10 +137,12 @@ export default function AccountsPage() {
     try {
       await api.post('/aws/accounts', data)
       setSuccess('AWS account added successfully! Costs will be synced shortly.')
+      toast('AWS account added successfully!', 'success')
       resetAws()
       fetchAccounts()
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to add AWS account')
+      toast(err.response?.data?.error || 'Failed to add AWS account', 'error')
     } finally {
       setLoading(false)
     }
@@ -158,6 +162,7 @@ export default function AccountsPage() {
     try {
       await api.post('/gcp/accounts', gcpForm)
       setSuccess('GCP account added successfully! Costs will be synced shortly.')
+      toast('GCP account added successfully!', 'success')
       setGcpForm({
         name: '',
         project_id: '',
@@ -167,6 +172,7 @@ export default function AccountsPage() {
       fetchAccounts()
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to add GCP account')
+      toast(err.response?.data?.error || 'Failed to add GCP account', 'error')
     } finally {
       setLoading(false)
     }
@@ -186,6 +192,7 @@ export default function AccountsPage() {
     try {
       await api.post('/azure/accounts', azureForm)
       setSuccess('Azure account added successfully! Costs will be synced shortly.')
+      toast('Azure account added successfully!', 'success')
       setAzureForm({
         name: '',
         subscription_id: '',
@@ -196,6 +203,7 @@ export default function AccountsPage() {
       fetchAccounts()
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to add Azure account')
+      toast(err.response?.data?.error || 'Failed to add Azure account', 'error')
     } finally {
       setLoading(false)
     }
