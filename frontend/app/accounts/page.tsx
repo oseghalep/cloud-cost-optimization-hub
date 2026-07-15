@@ -48,6 +48,7 @@ export default function AccountsPage() {
   const [success, setSuccess] = useState('')
   const [existingAccounts, setExistingAccounts] = useState<any[]>([])
   const [copiedPolicy, setCopiedPolicy] = useState(false)
+  const [copiedAccountId, setCopiedAccountId] = useState<number | null>(null)
 
   const copyPolicy = async () => {
     try {
@@ -260,7 +261,25 @@ export default function AccountsPage() {
                     </span>
                     <div>
                       <p className="text-slate-900 dark:text-white font-medium">{account.name}</p>
-                      <p className="text-slate-600 dark:text-slate-400 text-sm">Account ID: {account.account_id}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-slate-600 dark:text-slate-400 text-sm">Account ID: {account.account_id}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(account.account_id)
+                            setCopiedAccountId(account.id)
+                            setTimeout(() => setCopiedAccountId(null), 2000)
+                          }}
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition"
+                          title="Copy Account ID"
+                        >
+                          {copiedAccountId === account.id ? (
+                            <Check className="w-3.5 h-3.5 text-green-500" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <span className={`text-xs px-2 py-1 rounded ${
