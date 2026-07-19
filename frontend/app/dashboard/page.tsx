@@ -30,6 +30,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
   const gridColor = isDark ? '#334155' : '#e2e8f0'
@@ -52,7 +53,10 @@ export default function DashboardPage() {
         if (axios.isAxiosError(error) && error.response?.status === 401) {
           localStorage.removeItem('token')
           router.push('/login')
+          return
         }
+        // GET failure surfaces inline, not as a toast.
+        setLoadError('Could not load your dashboard data.')
       } finally {
         setLoading(false)
       }
@@ -72,7 +76,7 @@ export default function DashboardPage() {
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
         <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Cloud Cost Optimization Hub</h1>
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm sm:gap-4 sm:text-base">
             <a
               href="/accounts"
               className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
@@ -96,6 +100,21 @@ export default function DashboardPage() {
       </header>
 
       <main className="p-4 sm:p-6">
+        {!loading && loadError && (
+          <div
+            role="alert"
+            className="mb-6 flex flex-col items-start gap-3 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-red-500/50 px-4 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {loading ? (
           <>
             {/* Skeleton: Stat cards */}

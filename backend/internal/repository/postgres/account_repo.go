@@ -37,6 +37,17 @@ func (r *CloudAccountRepository) Delete(id, userID string) error {
 	return r.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.CloudAccount{}).Error
 }
 
+// UpdateStatus writes only the status column. Using this instead of Update()
+// avoids Save() writing a stale in-memory last_sync_at back over the fresh
+// timestamp that UpdateLastSync just set during a sync.
+// Scoped by user_id so the repository enforces ownership itself rather than
+// trusting every caller to have already checked.
+func (r *CloudAccountRepository) UpdateStatus(id, userID, status string) error {
+	return r.db.Model(&models.CloudAccount{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Update("status", status).Error
+}
+
 func (r *CloudAccountRepository) UpdateLastSync(id string) error {
 	return r.db.Model(&models.CloudAccount{}).
 		Where("id = ?", id).

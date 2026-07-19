@@ -80,9 +80,10 @@ func (s *GCPService) FetchAndStoreCosts(account *models.CloudAccount) error {
 		currentDate = currentDate.AddDate(0, 0, 1)
 	}
 
-	// Store in database
-	if len(costs) > 0 {
-		if err := s.costRepo.BulkCreate(costs); err != nil {
+	// Replace the window rather than appending, so repeated syncs don't stack
+	// duplicate rows. Skipped for test connections, which carry no account ID.
+	if account.ID != uuid.Nil {
+		if err := s.costRepo.ReplaceAccountRange(account.ID, startDate, endDate, costs); err != nil {
 			return fmt.Errorf("failed to store GCP costs: %w", err)
 		}
 		s.logger.Info().Int("count", len(costs)).Msg("Stored GCP costs")

@@ -103,8 +103,12 @@ func (s *AWSService) FetchAndStoreCosts(account *models.CloudAccount) error {
 	allCosts := append(costs, serviceCosts...)
 
 	// Store in database
-	if len(allCosts) > 0 {
-		if err := s.costRepo.BulkCreate(allCosts); err != nil {
+	// Test connections pass a bare account (no ID) purely to exercise the AWS
+	// call. Persisting those rows would orphan them, so only store for a real
+	// saved account. Replace (not append) the window so repeated syncs don't
+	// stack duplicate cost rows.
+	if account.ID != uuid.Nil {
+		if err := s.costRepo.ReplaceAccountRange(account.ID, startDate, endDate, allCosts); err != nil {
 			return fmt.Errorf("failed to store costs: %w", err)
 		}
 		s.logger.Info().Int("count", len(allCosts)).Msg("Stored AWS costs")
