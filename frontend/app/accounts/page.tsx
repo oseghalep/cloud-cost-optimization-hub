@@ -12,7 +12,7 @@ import { AccountCard, type AccountCardData } from '@/components/accounts/Account
 import { Spinner } from '@/components/ui/Spinner'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Copy, Check, Plus, X, Search } from 'lucide-react'
-import { ToastViewport, type ToastData } from '@/components/ui/Toast'
+import { useToast } from '@/components/ui/Toast'
 
 // How long a deleted account can be undone before the API call actually fires.
 const UNDO_WINDOW_MS = 5000
@@ -95,15 +95,8 @@ export default function AccountsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const addPanelRef = useRef<HTMLDivElement | null>(null)
 
-  // Toasts
-  const [toasts, setToasts] = useState<ToastData[]>([])
-  const toastSeq = useRef(0)
-  const dismissToast = (id: string) => setToasts((prev) => prev.filter((t) => t.id !== id))
-  const pushToast = (t: Omit<ToastData, 'id'>) => {
-    const id = `t${(toastSeq.current += 1)}`
-    setToasts((prev) => [...prev, { ...t, id }])
-    return id
-  }
+  // Toasts come from the app-wide provider mounted in the root layout.
+  const { toast: pushToast } = useToast()
 
   // Pending deletes: the row is hidden immediately but the API call only fires
   // once the undo window closes, which is what makes "Undo" actually possible.
@@ -1054,8 +1047,6 @@ export default function AccountsPage() {
           </div>
         )}
       </main>
-
-      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }

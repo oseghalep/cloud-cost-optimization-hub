@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react'
 
 export type ToastType = 'success' | 'error' | 'info'
@@ -74,6 +74,64 @@ function Toast({ toast, onDismiss }: { toast: ToastData; onDismiss: (id: string)
       </button>
     </div>
   )
+}
+
+interface ToastContextValue {
+  /** Show a toast. Returns its id so it can be dismissed early. */
+  toast: (t: Omit<ToastData, 'id'>) => string
+  success: (message: string, opts?: Partial<Omit<ToastData, 'id' | 'type' | 'message'>>) => string
+  error: (message: string, opts?: Partial<Omit<ToastData, 'id' | 'type' | 'message'>>) => string
+  dismiss: (id: string) => void
+}
+
+const ToastContext = createContext<ToastContextValue | undefined>(undefined)
+
+/**
+ * App-wide toast host. Mounted once in the root layout so any page can fire a
+ * toast without owning the state or rendering its own viewport.
+ *
+ * Toasts are for actions the user takes (POST/PATCH/PUT/DELETE). Data loading
+ * (GET) is communicated with skeleton loaders instead.
+ */
+export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const [toasts, setToasts] = useState<ToastData[]>([])
+  const seq = useRef(0)
+
+  const dismiss = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
+
+  const toast = useCallback((t: Omit<ToastData, 'id'>) => {
+    const id = `toast-${(seq.current += 1)}`
+    setToasts((prev) => [...prev, { ...t, id }])
+    return id
+  }, [])
+
+  const success = useCallback(
+    (message: string, opts?: Partial<Omit<ToastData, 'id' | 'type' | 'message'>>) =>
+      toast({ type: 'success', message, ...opts }),
+    [toast]
+  )
+
+  const error = useCallback(
+    (message: string, opts?: Partial<Omit<ToastData, 'id' | 'type' | 'message'>>) =>
+      // Failures get a little longer on screen than confirmations.
+      toast({ type: 'error', message, duration: 6000, ...opts }),
+    [toast]
+  )
+
+  return (
+    <ToastContext.Provider value={{ toast, success, error, dismiss }}>
+      {children}
+      <ToastViewport toasts={toasts} onDismiss={dismiss} />
+    </ToastContext.Provider>
+  )
+}
+
+export function useToast(): ToastContextValue {
+  const ctx = useContext(ToastContext)
+  if (!ctx) throw new Error('useToast must be used within a ToastProvider')
+  return ctx
 }
 
 /**

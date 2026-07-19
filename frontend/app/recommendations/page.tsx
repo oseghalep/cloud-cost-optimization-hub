@@ -8,6 +8,21 @@ import { Recommendation } from '@/types'
 import { RecCardSkeleton } from '@/components/ui/Skeleton'
 import { Spinner } from '@/components/ui/Spinner'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { useToast } from '@/components/ui/Toast'
+
+/** Pulls a readable message out of an axios error, with a sane fallback. */
+function apiErrorMessage(err: any, fallback: string): string {
+  const detail = err?.response?.data?.error
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail.length > 120 ? `${detail.slice(0, 120)}…` : detail
+  }
+  return fallback
+}
+
+/** Keeps long recommendation titles from overwhelming a toast. */
+function truncate(text: string, max = 45): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text
+}
 
 export default function RecommendationsPage() {
   const router = useRouter()
@@ -17,6 +32,8 @@ export default function RecommendationsPage() {
   const [filter, setFilter] = useState('all')
   // id + action of the row currently being applied/dismissed (per-row loading)
   const [actioning, setActioning] = useState<{ id: string; action: 'apply' | 'dismiss' } | null>(null)
+  const [loadError, setLoadError] = useState('')
+  const toast = useToast()
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -27,12 +44,16 @@ export default function RecommendationsPage() {
     fetchRecommendations()
   }, [router])
 
+  // GET: the skeleton loader communicates progress, and a failure shows an
+  // inline retry panel. No toast here, toasts are reserved for user actions.
   const fetchRecommendations = async () => {
     try {
       const response = await withMinDuration(api.get('/recommendations'), 1000)
-      setRecommendations(response.data)
+      setRecommendations(Array.isArray(response.data) ? response.data : [])
+      setLoadError('')
     } catch (error) {
       console.error('Failed to fetch recommendations:', error)
+      setLoadError('Could not load recommendations.')
     } finally {
       setLoading(false)
     }
@@ -42,34 +63,43 @@ export default function RecommendationsPage() {
     setGenerating(true)
     try {
       await api.post('/recommendations/generate')
-      // Wait a bit for generation to complete
+      toast.success('Generating recommendations. This may take a moment.')
+      // Generation runs server-side; give it a beat before re-reading.
       setTimeout(() => fetchRecommendations(), 2000)
-    } catch (error) {
-      console.error('Failed to generate recommendations:', error)
+    } catch (err: any) {
+      toast.error(apiErrorMessage(err, 'Could not generate recommendations.'))
     } finally {
       setGenerating(false)
     }
   }
 
   const handleDismiss = async (id: string) => {
+    const title = recommendations.find((r) => r.id === id)?.title ?? 'Recommendation'
     setActioning({ id, action: 'dismiss' })
     try {
       await api.patch(`/recommendations/${id}/dismiss`)
-      setRecommendations(recommendations.filter(r => r.id !== id))
-    } catch (error) {
-      console.error('Failed to dismiss recommendation:', error)
+      setRecommendations((prev) => prev.filter((r) => r.id !== id))
+      toast.success(`Dismissed "${truncate(title)}"`)
+    } catch (err: any) {
+      toast.error(apiErrorMessage(err, 'Could not dismiss that recommendation.'))
     } finally {
       setActioning(null)
     }
   }
 
   const handleApply = async (id: string) => {
+    const rec = recommendations.find((r) => r.id === id)
     setActioning({ id, action: 'apply' })
     try {
       await api.post(`/recommendations/${id}/apply`)
-      setRecommendations(recommendations.filter(r => r.id !== id))
-    } catch (error) {
-      console.error('Failed to apply recommendation:', error)
+      setRecommendations((prev) => prev.filter((r) => r.id !== id))
+      toast.success(
+        rec
+          ? `Applied "${truncate(rec.title)}" — saving ${formatCurrency(rec.potential_savings)}/mo`
+          : 'Recommendation applied'
+      )
+    } catch (err: any) {
+      toast.error(apiErrorMessage(err, 'Could not apply that recommendation.'))
     } finally {
       setActioning(null)
     }
@@ -186,6 +216,27 @@ export default function RecommendationsPage() {
             Dismissed
           </button>
         </div>
+
+        {/* A failed GET gets an inline retry panel, not a toast. */}
+        {!loading && loadError && (
+          <div
+            role="alert"
+            className="mb-4 flex flex-col items-start gap-3 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true)
+                setLoadError('')
+                fetchRecommendations()
+              }}
+              className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-red-500/50 px-4 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Recommendations List */}
         {loading ? (

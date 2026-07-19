@@ -30,6 +30,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
   const gridColor = isDark ? '#334155' : '#e2e8f0'
@@ -52,7 +53,10 @@ export default function DashboardPage() {
         if (axios.isAxiosError(error) && error.response?.status === 401) {
           localStorage.removeItem('token')
           router.push('/login')
+          return
         }
+        // GET failure surfaces inline, not as a toast.
+        setLoadError('Could not load your dashboard data.')
       } finally {
         setLoading(false)
       }
@@ -96,6 +100,21 @@ export default function DashboardPage() {
       </header>
 
       <main className="p-4 sm:p-6">
+        {!loading && loadError && (
+          <div
+            role="alert"
+            className="mb-6 flex flex-col items-start gap-3 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-red-500/50 px-4 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {loading ? (
           <>
             {/* Skeleton: Stat cards */}
