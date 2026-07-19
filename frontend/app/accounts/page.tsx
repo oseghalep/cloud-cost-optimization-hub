@@ -7,7 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import api from '@/lib/api'
 import { withMinDuration } from '@/lib/utils'
-import { AccountRowSkeleton } from '@/components/ui/Skeleton'
+import { AccountCardSkeleton } from '@/components/ui/Skeleton'
+import { AccountCard, type AccountCardData } from '@/components/accounts/AccountCard'
 import { Spinner } from '@/components/ui/Spinner'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Copy, Check } from 'lucide-react'
@@ -46,8 +47,29 @@ export default function AccountsPage() {
   const [accountsLoading, setAccountsLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [existingAccounts, setExistingAccounts] = useState<any[]>([])
+  const [existingAccounts, setExistingAccounts] = useState<AccountCardData[]>([])
   const [copiedPolicy, setCopiedPolicy] = useState(false)
+  const [refreshError, setRefreshError] = useState('')
+  // Track every in-flight refresh by id so concurrent clicks don't clear each other.
+  const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set())
+
+  // Re-fetches the latest account data (no backend sync endpoint exists yet).
+  const handleRefreshAccount = async (id: string) => {
+    setRefreshingIds((prev) => new Set(prev).add(id))
+    setRefreshError('')
+    try {
+      const response = await withMinDuration(api.get('/accounts'), 600)
+      setExistingAccounts(Array.isArray(response.data) ? response.data : [])
+    } catch {
+      setRefreshError('Failed to refresh account. Please try again.')
+    } finally {
+      setRefreshingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }
 
   const copyPolicy = async () => {
     try {
@@ -118,7 +140,7 @@ export default function AccountsPage() {
   const fetchAccounts = async () => {
     try {
       const response = await withMinDuration(api.get('/accounts'), 1000)
-      setExistingAccounts(response.data)
+      setExistingAccounts(Array.isArray(response.data) ? response.data : [])
     } catch (error) {
       console.error('Failed to fetch accounts:', error)
     } finally {
@@ -201,15 +223,6 @@ export default function AccountsPage() {
     }
   }
 
-  const getProviderBadgeColor = (provider: string) => {
-    switch(provider) {
-      case 'aws': return 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
-      case 'gcp': return 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-      case 'azure': return 'bg-cyan-600/20 text-cyan-700 dark:text-cyan-400'
-      default: return 'bg-gray-500/20 text-gray-600 dark:text-gray-400'
-    }
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
@@ -242,33 +255,46 @@ export default function AccountsPage() {
         {accountsLoading ? (
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Connected Accounts</h2>
-            <div className="space-y-2">
+            <div
+              role="status"
+              aria-busy="true"
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+            >
+              <span className="sr-only">Loading connected accounts</span>
               {Array.from({ length: 2 }).map((_, i) => (
-                <AccountRowSkeleton key={i} />
+                <AccountCardSkeleton key={i} />
               ))}
             </div>
           </div>
-        ) : existingAccounts.length > 0 && (
+        ) : existingAccounts.length === 0 ? (
           <div className="mb-8 animate-fade-in">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Connected Accounts</h2>
-            <div className="space-y-2">
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-8 text-center dark:border-slate-700 dark:bg-slate-900/40">
+              <p className="text-sm font-medium text-slate-900 dark:text-white">No accounts connected yet</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                Add your first cloud account below to start tracking costs.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-8 animate-fade-in">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Connected Accounts</h2>
+            {refreshError && (
+              <div
+                role="alert"
+                className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm text-red-600 dark:text-red-400"
+              >
+                {refreshError}
+              </div>
+            )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {existingAccounts.map((account) => (
-                <div key={account.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700 p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${getProviderBadgeColor(account.provider)}`}>
-                      {account.provider.toUpperCase()}
-                    </span>
-                    <div>
-                      <p className="text-slate-900 dark:text-white font-medium">{account.name}</p>
-                      <p className="text-slate-600 dark:text-slate-400 text-sm">Account ID: {account.account_id}</p>
-                    </div>
-                  </div>
-                  <span className={`text-xs px-2 py-1 rounded ${
-                    account.status === 'active' ? 'bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'
-                  }`}>
-                    {account.status}
-                  </span>
-                </div>
+                <AccountCard
+                  key={account.id}
+                  account={account}
+                  refreshing={refreshingIds.has(account.id)}
+                  onRefresh={handleRefreshAccount}
+                />
               ))}
             </div>
           </div>

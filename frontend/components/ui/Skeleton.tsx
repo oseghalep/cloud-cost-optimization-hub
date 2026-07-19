@@ -72,18 +72,24 @@ export function RecCardSkeleton() {
   )
 }
 
-/** Skeleton row for a connected cloud account on the Accounts page. */
-export function AccountRowSkeleton() {
+/** Skeleton card for a connected cloud account on the Accounts page. */
+export function AccountCardSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700 p-4 flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-6 w-14" />
-        <div>
-          <Skeleton className="h-4 w-32 mb-2" />
-          <Skeleton className="h-3 w-40" />
+    <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/60">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Skeleton className="h-11 w-11 rounded-xl" />
+          <div>
+            <Skeleton className="h-4 w-32 mb-2" />
+            <Skeleton className="h-3 w-40" />
+          </div>
         </div>
+        <Skeleton className="h-6 w-16 rounded-full" />
       </div>
-      <Skeleton className="h-6 w-16" />
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-200/70 pt-3 dark:border-white/10">
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-7 w-20 rounded-lg" />
+      </div>
     </div>
   )
 }
