@@ -1,16 +1,52 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import api from '@/lib/api'
 import { withMinDuration } from '@/lib/utils'
-import { AccountRowSkeleton } from '@/components/ui/Skeleton'
+import { AccountCardSkeleton } from '@/components/ui/Skeleton'
+import { AccountCard, type AccountCardData } from '@/components/accounts/AccountCard'
 import { Spinner } from '@/components/ui/Spinner'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
-import { Copy, Check } from 'lucide-react'
+import { Copy, Check, Plus, X, Search } from 'lucide-react'
+import { ToastViewport, type ToastData } from '@/components/ui/Toast'
+
+// How long a deleted account can be undone before the API call actually fires.
+const UNDO_WINDOW_MS = 5000
+
+/**
+ * Provider SDK errors are long and full of request IDs. Map the common causes
+ * to something a person can act on, and fall back to a trimmed raw message.
+ */
+function friendlySyncError(detail: string): string {
+  const d = detail || ''
+  if (/UnrecognizedClientException|InvalidClientTokenId|security token.*invalid/i.test(d))
+    return 'Invalid credentials. Check the Access Key ID and Secret Access Key.'
+  if (/SignatureDoesNotMatch/i.test(d)) return 'Secret Access Key is incorrect.'
+  if (/ExpiredToken|TokenRefreshRequired/i.test(d)) return 'Credentials have expired. Add a new key.'
+  if (/AccessDenied|UnauthorizedOperation|not authorized|AccessDeniedException/i.test(d))
+    return 'Access denied. The key needs ce:GetCostAndUsage permission.'
+  if (/missing .*credential|missing Azure subscription|missing .*project/i.test(d))
+    return 'Credentials are incomplete for this account.'
+  if (/no such host|dial tcp|timeout|context deadline/i.test(d))
+    return 'Could not reach the provider. Check your connection.'
+
+  const cleaned = d.replace(/^Sync failed:\s*/i, '').split(',')[0].trim()
+  return cleaned.length > 110 ? `${cleaned.slice(0, 110)}…` : cleaned || 'Sync failed.'
+}
+
+// Provider filter options for the accounts toolbar and summary chips.
+const ACCOUNTS_PER_PAGE = 9
+
+const PROVIDER_FILTERS: { value: string; label: string; chip: string }[] = [
+  { value: 'all', label: 'All', chip: '' },
+  { value: 'aws', label: 'AWS', chip: 'bg-orange-500/15 text-orange-700 dark:text-orange-400' },
+  { value: 'gcp', label: 'GCP', chip: 'bg-blue-500/15 text-blue-700 dark:text-blue-400' },
+  { value: 'azure', label: 'Azure', chip: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-400' },
+]
 
 // IAM policy required for cost ingestion (display-only, copyable).
 const AWS_IAM_POLICY = `{
@@ -45,9 +81,215 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(false)
   const [accountsLoading, setAccountsLoading] = useState(true)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [existingAccounts, setExistingAccounts] = useState<any[]>([])
+  const [existingAccounts, setExistingAccounts] = useState<AccountCardData[]>([])
   const [copiedPolicy, setCopiedPolicy] = useState(false)
+  const [refreshError, setRefreshError] = useState('')
+  // Track every in-flight refresh by id so concurrent clicks don't clear each other.
+  const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set())
+
+  // Account list controls (search + provider filter) and the collapsible add panel.
+  const [search, setSearch] = useState('')
+  const [providerFilter, setProviderFilter] = useState('all')
+  const [showAddPanel, setShowAddPanel] = useState(false)
+  const [page, setPage] = useState(1)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const addPanelRef = useRef<HTMLDivElement | null>(null)
+
+  // Toasts
+  const [toasts, setToasts] = useState<ToastData[]>([])
+  const toastSeq = useRef(0)
+  const dismissToast = (id: string) => setToasts((prev) => prev.filter((t) => t.id !== id))
+  const pushToast = (t: Omit<ToastData, 'id'>) => {
+    const id = `t${(toastSeq.current += 1)}`
+    setToasts((prev) => [...prev, { ...t, id }])
+    return id
+  }
+
+  // Pending deletes: the row is hidden immediately but the API call only fires
+  // once the undo window closes, which is what makes "Undo" actually possible.
+  const pendingDeletes = useRef<Map<string, { timer: ReturnType<typeof setTimeout>; account: AccountCardData; index: number }>>(
+    new Map()
+  )
+
+  const commitDelete = async (id: string) => {
+    const pending = pendingDeletes.current.get(id)
+    if (!pending) return
+    pendingDeletes.current.delete(id)
+    setDeletingId(id)
+    try {
+      await api.delete(`/accounts/${id}`)
+    } catch {
+      // Put it back if the server rejected the delete.
+      if (mountedRef.current) {
+        setExistingAccounts((prev) => {
+          const next = [...prev]
+          next.splice(Math.min(pending.index, next.length), 0, pending.account)
+          return next
+        })
+        pushToast({ type: 'error', message: `Could not delete ${pending.account.name}. It has been restored.` })
+      }
+    } finally {
+      if (mountedRef.current) setDeletingId(null)
+    }
+  }
+
+  const handleDeleteAccount = (id: string) => {
+    const index = existingAccounts.findIndex((a) => a.id === id)
+    const account = existingAccounts[index]
+    if (!account) return
+
+    // Optimistically remove, then start the undo countdown.
+    setExistingAccounts((prev) => prev.filter((a) => a.id !== id))
+    const timer = setTimeout(() => commitDelete(id), UNDO_WINDOW_MS)
+    pendingDeletes.current.set(id, { timer, account, index })
+
+    pushToast({
+      type: 'success',
+      message: `${account.name} deleted`,
+      actionLabel: 'Undo',
+      duration: UNDO_WINDOW_MS,
+      onAction: () => {
+        const pending = pendingDeletes.current.get(id)
+        if (!pending) return
+        clearTimeout(pending.timer)
+        pendingDeletes.current.delete(id)
+        setExistingAccounts((prev) => {
+          const next = [...prev]
+          next.splice(Math.min(pending.index, next.length), 0, pending.account)
+          return next
+        })
+      },
+    })
+  }
+
+  // If the page unmounts with deletes still pending, fire them now so the
+  // user's action isn't silently dropped.
+  useEffect(() => {
+    const pending = pendingDeletes.current
+    return () => {
+      pending.forEach(({ timer }, id) => {
+        clearTimeout(timer)
+        api.delete(`/accounts/${id}`).catch(() => {})
+      })
+      pending.clear()
+    }
+  }, [])
+
+  const providerCounts = existingAccounts.reduce<Record<string, number>>((acc, a) => {
+    const key = (a.provider ?? '').toLowerCase()
+    acc[key] = (acc[key] ?? 0) + 1
+    return acc
+  }, {})
+
+  const query = search.trim().toLowerCase()
+  const filteredAccounts = existingAccounts.filter((a) => {
+    const matchesProvider =
+      providerFilter === 'all' || (a.provider ?? '').toLowerCase() === providerFilter
+    const matchesQuery =
+      !query ||
+      (a.name ?? '').toLowerCase().includes(query) ||
+      (a.account_id ?? '').toLowerCase().includes(query)
+    return matchesProvider && matchesQuery
+  })
+
+  // Client-side pagination (the API returns every account in one response).
+  const totalPages = Math.max(1, Math.ceil(filteredAccounts.length / ACCOUNTS_PER_PAGE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedAccounts = filteredAccounts.slice(
+    (currentPage - 1) * ACCOUNTS_PER_PAGE,
+    currentPage * ACCOUNTS_PER_PAGE
+  )
+
+  // Any change to the filters puts you back on page 1.
+  useEffect(() => {
+    setPage(1)
+  }, [search, providerFilter])
+
+  // Bring the add form into view when it opens, so it never opens off-screen.
+  useEffect(() => {
+    if (showAddPanel) {
+      addPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [showAddPanel])
+
+  // Guards against setting state after the page unmounts (e.g. sign out mid-refresh).
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  // "Synced 3 hours ago" is computed at render time, so re-render every minute
+  // to keep the relative timestamps honest on a long-lived tab.
+  const [, setClockTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setClockTick((n) => n + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Triggers a real provider sync, then swaps in the updated account row.
+  const handleRefreshAccount = async (id: string) => {
+    const name = existingAccounts.find((a) => a.id === id)?.name ?? 'Account'
+    setRefreshingIds((prev) => new Set(prev).add(id))
+    setRefreshError('')
+    try {
+      const response = await withMinDuration(api.post(`/accounts/${id}/sync`), 600)
+      if (!mountedRef.current) return
+      const updated = response.data
+      if (updated && updated.id) {
+        setExistingAccounts((prev) => prev.map((a) => (a.id === id ? updated : a)))
+      }
+      pushToast({ type: 'success', message: `${name} synced` })
+    } catch (err: any) {
+      if (!mountedRef.current) return
+      // The sync ran but the provider rejected it (bad credentials, no access).
+      const detail = err?.response?.data?.error ?? ''
+      pushToast({
+        type: 'error',
+        message: `${name}: ${friendlySyncError(detail)}`,
+        duration: 6000,
+      })
+      // Reflect the error status the backend just recorded.
+      try {
+        const list = await api.get('/accounts')
+        if (mountedRef.current && Array.isArray(list.data)) setExistingAccounts(list.data)
+      } catch {
+        /* keep the current list */
+      }
+    } finally {
+      if (mountedRef.current) {
+        setRefreshingIds((prev) => {
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
+      }
+    }
+  }
+
+  // Validates AWS keys against Cost Explorer before the account is saved.
+  const [testingConnection, setTestingConnection] = useState(false)
+  const handleTestConnection = async () => {
+    setTestingConnection(true)
+    try {
+      await api.post('/aws/test-connection', {
+        access_key_id: awsValues.access_key_id,
+        secret_access_key: awsValues.secret_access_key,
+        region: awsValues.region,
+      })
+      pushToast({ type: 'success', message: 'Connection successful. These credentials work.' })
+    } catch (err: any) {
+      pushToast({
+        type: 'error',
+        message: friendlySyncError(err?.response?.data?.error ?? ''),
+        duration: 6000,
+      })
+    } finally {
+      if (mountedRef.current) setTestingConnection(false)
+    }
+  }
 
   const copyPolicy = async () => {
     try {
@@ -112,13 +354,15 @@ export default function AccountsPage() {
   useEffect(() => {
     clearAwsErrors()
     setError('')
-    setSuccess('')
   }, [activeTab, clearAwsErrors])
 
   const fetchAccounts = async () => {
     try {
       const response = await withMinDuration(api.get('/accounts'), 1000)
-      setExistingAccounts(response.data)
+      const accounts = Array.isArray(response.data) ? response.data : []
+      setExistingAccounts(accounts)
+      // First-run: nothing to manage yet, so lead with the add form.
+      if (accounts.length === 0) setShowAddPanel(true)
     } catch (error) {
       console.error('Failed to fetch accounts:', error)
     } finally {
@@ -130,11 +374,10 @@ export default function AccountsPage() {
   const onAwsSubmit = async (data: AwsFormValues) => {
     setLoading(true)
     setError('')
-    setSuccess('')
 
     try {
       await api.post('/aws/accounts', data)
-      setSuccess('AWS account added successfully! Costs will be synced shortly.')
+      pushToast({ type: 'success', message: 'AWS account added successfully.' })
       resetAws()
       fetchAccounts()
     } catch (err: any) {
@@ -153,11 +396,10 @@ export default function AccountsPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    setSuccess('')
 
     try {
       await api.post('/gcp/accounts', gcpForm)
-      setSuccess('GCP account added successfully! Costs will be synced shortly.')
+      pushToast({ type: 'success', message: 'GCP account added successfully.' })
       setGcpForm({
         name: '',
         project_id: '',
@@ -181,11 +423,10 @@ export default function AccountsPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    setSuccess('')
 
     try {
       await api.post('/azure/accounts', azureForm)
-      setSuccess('Azure account added successfully! Costs will be synced shortly.')
+      pushToast({ type: 'success', message: 'Azure account added successfully.' })
       setAzureForm({
         name: '',
         subscription_id: '',
@@ -201,21 +442,12 @@ export default function AccountsPage() {
     }
   }
 
-  const getProviderBadgeColor = (provider: string) => {
-    switch(provider) {
-      case 'aws': return 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
-      case 'gcp': return 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-      case 'azure': return 'bg-cyan-600/20 text-cyan-700 dark:text-cyan-400'
-      default: return 'bg-gray-500/20 text-gray-600 dark:text-gray-400'
-    }
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
         <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Cloud Cost Optimization Hub</h1>
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm sm:gap-4 sm:text-base">
             <a href="/dashboard" className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">
               Dashboard
             </a>
@@ -237,44 +469,207 @@ export default function AccountsPage() {
         </div>
       </header>
 
-      <main className="p-4 sm:p-6 max-w-4xl mx-auto">
-        {/* Existing Accounts Section */}
-        {accountsLoading ? (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Connected Accounts</h2>
-            <div className="space-y-2">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <AccountRowSkeleton key={i} />
-              ))}
-            </div>
+      <main className="p-4 sm:p-6 max-w-6xl mx-auto">
+        {/* Page header */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Cloud Accounts</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              Connect AWS, Google Cloud and Azure to track spend in one place.
+            </p>
           </div>
-        ) : existingAccounts.length > 0 && (
-          <div className="mb-8 animate-fade-in">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Connected Accounts</h2>
-            <div className="space-y-2">
-              {existingAccounts.map((account) => (
-                <div key={account.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700 p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${getProviderBadgeColor(account.provider)}`}>
-                      {account.provider.toUpperCase()}
-                    </span>
-                    <div>
-                      <p className="text-slate-900 dark:text-white font-medium">{account.name}</p>
-                      <p className="text-slate-600 dark:text-slate-400 text-sm">Account ID: {account.account_id}</p>
-                    </div>
-                  </div>
-                  <span className={`text-xs px-2 py-1 rounded ${
-                    account.status === 'active' ? 'bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'
-                  }`}>
-                    {account.status}
-                  </span>
-                </div>
-              ))}
+          <button
+            type="button"
+            onClick={() => setShowAddPanel((v) => !v)}
+            aria-expanded={showAddPanel ? 'true' : 'false'}
+            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950"
+          >
+            {showAddPanel ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {showAddPanel ? 'Close' : 'Add Account'}
+          </button>
+        </div>
+
+        {/* Summary chips */}
+        {!accountsLoading && existingAccounts.length > 0 && (
+          <div className="mb-5 flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded-full bg-slate-200/70 px-2.5 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              {existingAccounts.length} {existingAccounts.length === 1 ? 'account' : 'accounts'}
+            </span>
+            {PROVIDER_FILTERS.filter((p) => p.value !== 'all' && providerCounts[p.value]).map((p) => (
+              <span
+                key={p.value}
+                className={`rounded-full px-2.5 py-1 font-medium ${p.chip}`}
+              >
+                {providerCounts[p.value]} {p.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Toolbar: search + provider filter */}
+        {!accountsLoading && existingAccounts.length > 0 && (
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative w-full lg:max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or account ID"
+                aria-label="Search accounts"
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
+              {PROVIDER_FILTERS.map((p) => {
+                const active = providerFilter === p.value
+                const count = p.value === 'all' ? existingAccounts.length : providerCounts[p.value] ?? 0
+                return (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setProviderFilter(p.value)}
+                    className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      active
+                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {p.label} ({count})
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}
 
-        {/* Add Account Section with Tabs */}
+        {refreshError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm text-red-600 dark:text-red-400"
+          >
+            {refreshError}
+          </div>
+        )}
+
+        {/* Accounts grid / states — stays at the top so opening the add panel
+            never pushes the cards down. */}
+        {accountsLoading ? (
+          <div
+            role="status"
+            aria-busy="true"
+            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+          >
+            <span className="sr-only">Loading connected accounts</span>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <AccountCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : existingAccounts.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
+            <p className="text-sm font-medium text-slate-900 dark:text-white">No accounts connected yet</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-slate-600 dark:text-slate-400">
+              Connect your first cloud account using the form below to start tracking costs.
+            </p>
+          </div>
+        ) : filteredAccounts.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
+            <p className="text-sm font-medium text-slate-900 dark:text-white">No matching accounts</p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              Nothing matches your search or filter.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('')
+                setProviderFilter('all')
+              }}
+              className="mt-4 inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="grid animate-fade-in grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {pagedAccounts.map((account) => (
+                <AccountCard
+                  key={account.id}
+                  account={account}
+                  refreshing={refreshingIds.has(account.id)}
+                  onRefresh={handleRefreshAccount}
+                  deleting={deletingId === account.id}
+                  onDelete={handleDeleteAccount}
+                />
+              ))}
+            </div>
+
+            {filteredAccounts.length > ACCOUNTS_PER_PAGE && (
+              <div className="mt-6 flex flex-col items-center justify-between gap-3 sm:flex-row">
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Showing {(currentPage - 1) * ACCOUNTS_PER_PAGE + 1}-
+                  {Math.min(currentPage * ACCOUNTS_PER_PAGE, filteredAccounts.length)} of{' '}
+                  {filteredAccounts.length}
+                </p>
+                <nav aria-label="Pagination" className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Prev
+                  </button>
+                  {Array.from({ length: totalPages }).map((_, i) => {
+                    const n = i + 1
+                    const active = n === currentPage
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setPage(n)}
+                        aria-label={`Page ${n}`}
+                        className={`inline-flex min-h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-xs font-medium transition-colors ${
+                          active
+                            ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                            : 'border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Next
+                  </button>
+                </nav>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Add Account panel (collapsible) — expands below the cards */}
+        {showAddPanel && (
+          <div ref={addPanelRef} className="mt-8 scroll-mt-24 animate-fade-in">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                Add Cloud Account
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddPanel(false)}
+                aria-label="Close add account form"
+                className="inline-flex min-h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-slate-300 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {/* Add Account Section with Tabs */}
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
           <div className="border-b border-slate-200 dark:border-slate-800">
             <div className="flex overflow-x-auto">
@@ -318,12 +713,6 @@ export default function AccountsPage() {
             {error && (
               <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg">
                 {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="mb-4 bg-green-500/10 border border-green-500/50 text-green-700 dark:text-green-400 px-4 py-2 rounded-lg">
-                {success}
               </div>
             )}
 
@@ -442,14 +831,34 @@ export default function AccountsPage() {
                   </p>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={loading || !awsIsValid}
-                  className="inline-flex w-full items-center justify-center gap-2 py-2 px-4 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading && <Spinner />}
-                  {loading ? 'Adding Account...' : 'Add AWS Account'}
-                </button>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleTestConnection}
+                    disabled={
+                      testingConnection ||
+                      loading ||
+                      !awsValues.access_key_id ||
+                      !awsValues.secret_access_key ||
+                      !awsValues.region ||
+                      !!awsErrors.access_key_id ||
+                      !!awsErrors.secret_access_key
+                    }
+                    title="Check these credentials against AWS before saving"
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    {testingConnection && <Spinner />}
+                    {testingConnection ? 'Testing...' : 'Test connection'}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || !awsIsValid}
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 font-medium text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
+                  >
+                    {loading && <Spinner />}
+                    {loading ? 'Adding Account...' : 'Add AWS Account'}
+                  </button>
+                </div>
               </form>
             )}
 
@@ -641,8 +1050,12 @@ export default function AccountsPage() {
               </form>
             )}
           </div>
-        </div>
+            </div>
+          </div>
+        )}
       </main>
+
+      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }
