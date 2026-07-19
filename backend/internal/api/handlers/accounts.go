@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,8 +10,16 @@ import (
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/internal/repository/postgres"
 )
 
+// CostSyncer is any provider service that can pull and store costs for an account.
+type CostSyncer interface {
+	FetchAndStoreCosts(account *models.CloudAccount) error
+}
+
 type AccountHandler struct {
-	accountRepo *postgres.CloudAccountRepository
+	accountRepo  *postgres.CloudAccountRepository
+	awsService   CostSyncer
+	gcpService   CostSyncer
+	azureService CostSyncer
 }
 
 type CreateAccountRequest struct {
@@ -20,10 +29,74 @@ type CreateAccountRequest struct {
 	Credentials models.JSON          `json:"credentials" binding:"required"`
 }
 
-func NewAccountHandler(accountRepo *postgres.CloudAccountRepository) *AccountHandler {
+func NewAccountHandler(
+	accountRepo *postgres.CloudAccountRepository,
+	awsService CostSyncer,
+	gcpService CostSyncer,
+	azureService CostSyncer,
+) *AccountHandler {
 	return &AccountHandler{
-		accountRepo: accountRepo,
+		accountRepo:  accountRepo,
+		awsService:   awsService,
+		gcpService:   gcpService,
+		azureService: azureService,
 	}
+}
+
+// Sync pulls fresh costs for one account and stamps last_sync_at on success.
+// Runs synchronously so the caller learns whether the sync actually worked,
+// unlike the fire-and-forget goroutine used when an account is first added.
+func (h *AccountHandler) Sync(c *gin.Context) {
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	account, err := h.accountRepo.FindByID(c.Param("id"), userID)
+	if err != nil || account == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Account not found"})
+		return
+	}
+
+	var syncer CostSyncer
+	switch account.Provider {
+	case models.ProviderAWS:
+		syncer = h.awsService
+	case models.ProviderGCP:
+		syncer = h.gcpService
+	case models.ProviderAzure:
+		syncer = h.azureService
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported provider"})
+		return
+	}
+
+	if syncer == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Sync unavailable for this provider"})
+		return
+	}
+
+	// Status is written column-only. A full Save() here would push the stale
+	// in-memory last_sync_at back over the fresh value the sync just wrote.
+	if syncErr := syncer.FetchAndStoreCosts(account); syncErr != nil {
+		if err := h.accountRepo.UpdateStatus(account.ID.String(), userID, "error"); err != nil {
+			log.Printf("sync: failed to mark account %s as error: %v", account.ID, err)
+		}
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Sync failed: " + syncErr.Error()})
+		return
+	}
+
+	if err := h.accountRepo.UpdateStatus(account.ID.String(), userID, "active"); err != nil {
+		log.Printf("sync: failed to mark account %s as active: %v", account.ID, err)
+	}
+
+	updated, err := h.accountRepo.FindByID(account.ID.String(), userID)
+	if err != nil || updated == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "Sync successful"})
+		return
+	}
+	c.JSON(http.StatusOK, updated)
 }
 
 func (h *AccountHandler) Create(c *gin.Context) {

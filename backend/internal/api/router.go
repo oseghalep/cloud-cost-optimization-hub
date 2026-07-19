@@ -51,7 +51,7 @@ func NewRouter(
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userRepo, jwtSecret)
 	dashboardHandler := handlers.NewDashboardHandler(costRepo, recommendationRepo, alertRepo)
-	accountHandler := handlers.NewAccountHandler(accountRepo)
+	accountHandler := handlers.NewAccountHandler(accountRepo, awsService, gcpService, azureService)
 	awsCredsHandler := handlers.NewAWSCredentialsHandler(accountRepo, awsService)
 	recommendationHandler := handlers.NewRecommendationHandler(recommendationRepo, recommendationEngine)
 
@@ -103,6 +103,7 @@ func (r *Router) setupRoutes() {
 		protected.GET("/accounts", r.accountHandler.List)
 		protected.GET("/accounts/:id", r.accountHandler.Get)
 		protected.DELETE("/accounts/:id", r.accountHandler.Delete)
+		protected.POST("/accounts/:id/sync", r.accountHandler.Sync)
 
 		// AWS Account routes
 		protected.POST("/aws/accounts", r.awsCredsHandler.AddAWSAccount)

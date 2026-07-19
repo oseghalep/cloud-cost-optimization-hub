@@ -3,6 +3,7 @@ package postgres
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/oseghalep/cloud-cost-optimization-hub/backend/internal/models"
 	"gorm.io/gorm"
 )
@@ -21,6 +22,29 @@ func (r *CostRepository) Create(record *models.CostRecord) error {
 
 func (r *CostRepository) BulkCreate(records []models.CostRecord) error {
 	return r.db.CreateInBatches(records, 100).Error
+}
+
+// ReplaceAccountRange swaps an account's cost records for a date window in one
+// transaction: delete what's there, insert the fresh set.
+//
+// Syncs are user-triggerable and re-fetch the same rolling window every time.
+// CostRecord has no unique constraint, so a plain insert would append a
+// duplicate copy of the window on every sync and inflate every total.
+func (r *CostRepository) ReplaceAccountRange(
+	accountID uuid.UUID,
+	startDate, endDate time.Time,
+	records []models.CostRecord,
+) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("account_id = ? AND date BETWEEN ? AND ?", accountID, startDate, endDate).
+			Delete(&models.CostRecord{}).Error; err != nil {
+			return err
+		}
+		if len(records) == 0 {
+			return nil
+		}
+		return tx.CreateInBatches(records, 100).Error
+	})
 }
 
 func (r *CostRepository) GetCostsByAccount(accountID, userID string, startDate, endDate time.Time) ([]models.CostRecord, error) {

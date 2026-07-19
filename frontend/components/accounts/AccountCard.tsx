@@ -1,6 +1,7 @@
 'use client'
 
-import { RefreshCw } from 'lucide-react'
+import { useState } from 'react'
+import { RefreshCw, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ProviderIcon } from '@/components/accounts/ProviderIcon'
 
@@ -90,11 +91,18 @@ export function AccountCard({
   account,
   refreshing,
   onRefresh,
+  deleting,
+  onDelete,
 }: {
   account: AccountCardData
   refreshing: boolean
   onRefresh: (id: string) => void
+  deleting: boolean
+  onDelete: (id: string) => void
 }) {
+  // Inline delete confirmation lives on the card itself, so you always
+  // confirm against the account you are actually looking at.
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   // Normalize so casing/alias drift from the backend doesn't silently fall back.
   const provider = PROVIDERS[(account.provider ?? '').toLowerCase()] ?? FALLBACK
   const status = statusTone(account.status)
@@ -139,25 +147,68 @@ export function AccountCard({
         </span>
       </div>
 
-      <div className="relative mt-4 flex items-center justify-between gap-3 border-t border-slate-200/70 pt-3 dark:border-white/10">
-        <p
-          title={account.last_sync_at ? new Date(account.last_sync_at).toLocaleString() : undefined}
-          className="truncate text-xs text-slate-500 dark:text-slate-400"
-        >
-          {formatLastSync(account.last_sync_at)}
-        </p>
-        <button
-          type="button"
-          onClick={() => onRefresh(account.id)}
-          disabled={refreshing}
-          aria-label={refreshing ? `Refreshing ${account.name}` : `Refresh ${account.name}`}
-          className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
-        >
-          <RefreshCw
-            className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin motion-reduce:animate-none' : ''}`}
-          />
-          {refreshing ? 'Refreshing' : 'Refresh'}
-        </button>
+      <div className="relative mt-4 border-t border-slate-200/70 pt-3 dark:border-white/10">
+        {confirmingDelete ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-medium text-slate-900 dark:text-white">
+              Delete this account?
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                disabled={deleting}
+                className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(account.id)}
+                disabled={deleting}
+                aria-label={`Confirm delete ${account.name}`}
+                className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg bg-red-600 px-3 text-xs font-medium text-white transition-colors hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleting && (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+                )}
+                {deleting ? 'Deleting' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <p
+              title={account.last_sync_at ? new Date(account.last_sync_at).toLocaleString() : undefined}
+              className="truncate text-xs text-slate-500 dark:text-slate-400"
+            >
+              {formatLastSync(account.last_sync_at)}
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onRefresh(account.id)}
+                disabled={refreshing}
+                aria-label={refreshing ? `Refreshing ${account.name}` : `Refresh ${account.name}`}
+                className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin motion-reduce:animate-none' : ''}`}
+                />
+                {refreshing ? 'Refreshing' : 'Refresh'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(true)}
+                aria-label={`Delete ${account.name}`}
+                title="Delete account"
+                className="inline-flex min-h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-300 text-slate-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-slate-700 dark:text-slate-400 dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
