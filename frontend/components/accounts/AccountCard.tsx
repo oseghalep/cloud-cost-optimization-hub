@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { RefreshCw, Trash2 } from 'lucide-react'
+import { RefreshCw, Trash2, Copy, Check } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ProviderIcon } from '@/components/accounts/ProviderIcon'
+import { useToast } from '@/components/ui/Toast'
 
 export interface AccountCardData {
   id: string
@@ -103,6 +104,24 @@ export function AccountCard({
   // Inline delete confirmation lives on the card itself, so you always
   // confirm against the account you are actually looking at.
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+
+  // Copy the account ID: the icon flips to a tick for immediate feedback and a
+  // toast confirms it, so the action is obvious either way.
+  const { success, error } = useToast()
+  const [copiedId, setCopiedId] = useState(false)
+
+  const copyAccountId = async () => {
+    if (!account.account_id) return
+    try {
+      await navigator.clipboard.writeText(account.account_id)
+      setCopiedId(true)
+      setTimeout(() => setCopiedId(false), 2000)
+      success(`Account ID ${account.account_id} copied`)
+    } catch {
+      // Clipboard needs a secure context and user permission.
+      error('Could not copy. Your browser blocked clipboard access.')
+    }
+  }
   // Normalize so casing/alias drift from the backend doesn't silently fall back.
   const provider = PROVIDERS[(account.provider ?? '').toLowerCase()] ?? FALLBACK
   const status = statusTone(account.status)
@@ -129,13 +148,34 @@ export function AccountCard({
             >
               {account.name}
             </p>
-            <p
-              title={account.account_id ? `${provider.label} · ${account.account_id}` : provider.label}
-              className="truncate text-xs text-slate-500 dark:text-slate-400"
-            >
-              {provider.label}
-              {account.account_id ? ` · ${account.account_id}` : ''}
-            </p>
+            <div className="flex min-w-0 items-center gap-1">
+              <p
+                title={account.account_id ? `${provider.label} · ${account.account_id}` : provider.label}
+                className="truncate text-xs text-slate-500 dark:text-slate-400"
+              >
+                {provider.label}
+                {account.account_id ? ` · ${account.account_id}` : ''}
+              </p>
+              {account.account_id && (
+                <button
+                  type="button"
+                  onClick={copyAccountId}
+                  aria-label={
+                    copiedId ? 'Account ID copied' : `Copy account ID ${account.account_id}`
+                  }
+                  title="Copy account ID"
+                  // Icon stays small, but the negative margin lets the button
+                  // carry a full 44x44 hit area without bloating the meta row.
+                  className="-m-2.5 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:text-slate-200"
+                >
+                  {copiedId ? (
+                    <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
