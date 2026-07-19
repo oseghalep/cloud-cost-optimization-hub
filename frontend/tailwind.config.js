@@ -44,13 +44,19 @@ module.exports = {
       },
       keyframes: {
         "fade-in": {
-          "0%": { opacity: "0" },
-          "100%": { opacity: "1" },
+          // Slight upward drift so content settles instead of popping.
+          "0%": { opacity: "0", transform: "translateY(4px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        // Light sweep travelling across a loading placeholder.
+        shimmer: {
+          "100%": { transform: "translateX(100%)" },
         },
       },
       animation: {
         // ease-out entrance for content swapping in after a skeleton.
         "fade-in": "fade-in 250ms ease-out",
+        shimmer: "shimmer 1.6s infinite",
       },
     },
   },
