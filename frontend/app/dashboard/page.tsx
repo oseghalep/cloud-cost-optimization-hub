@@ -120,13 +120,14 @@ export default function DashboardPage() {
             {/* Skeleton: Stat cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {Array.from({ length: 4 }).map((_, i) => (
-                <StatCardSkeleton key={i} />
+                // Stagger the sweep so the row ripples rather than flashing together.
+                <StatCardSkeleton key={i} delayMs={i * 120} />
               ))}
             </div>
             {/* Skeleton: Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               <ChartSkeleton />
-              <ChartSkeleton />
+              <ChartSkeleton variant="donut" />
             </div>
             {/* Skeleton: Top recommendations */}
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
