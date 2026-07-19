@@ -9,6 +9,28 @@ import { Skeleton, StatCardSkeleton, ChartSkeleton, RecRowSkeleton } from '@/com
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { useTheme } from '@/components/theme/ThemeProvider'
 import { DollarSign, Lightbulb, TrendingDown, Bell } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import api from '@/lib/api'
+import { ProviderIcon } from '@/components/accounts/ProviderIcon'
+
+/** Just the account fields the dashboard needs to report data freshness. */
+interface SyncedAccount {
+  id: string
+  provider: string
+  last_sync_at: string | null
+}
+
+// Fixed order so the freshness strip doesn't reshuffle between loads.
+const PROVIDER_ORDER = [
+  { value: 'aws', label: 'AWS' },
+  { value: 'gcp', label: 'Google Cloud' },
+  { value: 'azure', label: 'Azure' },
+] as const
+
+function formatSyncedAt(date: Date | null): string {
+  if (!date) return 'Never synced'
+  return `Synced ${formatDistanceToNow(date, { addSuffix: true })}`
+}
 import {
   LineChart,
   Line,
@@ -29,8 +51,37 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 export default function DashboardPage() {
   const router = useRouter()
   const [data, setData] = useState<DashboardSummary | null>(null)
+  const [accounts, setAccounts] = useState<SyncedAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+
+  // Relative times are computed at render, so re-render each minute to keep
+  // "Synced 3 minutes ago" honest on a dashboard left open.
+  const [, setClockTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setClockTick((n) => n + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // One entry per provider, carrying that provider's most recent successful
+  // sync across all of its accounts.
+  const providerSync = PROVIDER_ORDER.map((p) => {
+    const owned = accounts.filter((a) => (a.provider ?? '').toLowerCase() === p.value)
+    if (owned.length === 0) return null
+
+    const timestamps = owned
+      .map((a) => (a.last_sync_at ? new Date(a.last_sync_at).getTime() : 0))
+      .filter((t) => t > 0 && !Number.isNaN(t))
+
+    return {
+      ...p,
+      accountCount: owned.length,
+      lastSync: timestamps.length ? new Date(Math.max(...timestamps)) : null,
+    }
+  }).filter(Boolean) as Array<(typeof PROVIDER_ORDER)[number] & {
+    accountCount: number
+    lastSync: Date | null
+  }>
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
   const gridColor = isDark ? '#334155' : '#e2e8f0'
@@ -46,8 +97,14 @@ export default function DashboardPage() {
 
     const fetchData = async () => {
       try {
-        const summary = await withMinDuration(getDashboardSummary(), 1000)
+        // Sync times live on the accounts, not in the dashboard summary, so
+        // fetch both together and derive freshness per provider.
+        const [summary, accountsRes] = await withMinDuration(
+          Promise.all([getDashboardSummary(), api.get('/accounts')]),
+          1000
+        )
         setData(summary)
+        setAccounts(Array.isArray(accountsRes.data) ? accountsRes.data : [])
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)
         if (axios.isAxiosError(error) && error.response?.status === 401) {
@@ -117,6 +174,12 @@ export default function DashboardPage() {
         )}
         {loading ? (
           <>
+            {/* Skeleton: data freshness strip */}
+            <div className="mb-6 flex flex-wrap items-center gap-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-44 rounded-full" delayMs={i * 120} />
+              ))}
+            </div>
             {/* Skeleton: Stat cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -143,6 +206,38 @@ export default function DashboardPage() {
           </>
         ) : (
         <div className="animate-fade-in">
+        {/* Data freshness: last successful sync per connected provider */}
+        {providerSync.length > 0 && (
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            {providerSync.map((p) => (
+              <span
+                key={p.value}
+                title={
+                  p.lastSync
+                    ? `${p.label} last synced ${p.lastSync.toLocaleString()}`
+                    : `${p.label} has never completed a sync`
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              >
+                <ProviderIcon provider={p.value} className="h-4 w-auto shrink-0" />
+                <span className="font-medium text-slate-900 dark:text-white">{p.label}</span>
+                <span
+                  className={
+                    p.lastSync ? 'text-slate-500 dark:text-slate-400' : 'text-amber-700 dark:text-amber-400'
+                  }
+                >
+                  {formatSyncedAt(p.lastSync)}
+                </span>
+                {p.accountCount > 1 && (
+                  <span className="text-slate-400 dark:text-slate-500">
+                    ({p.accountCount} accounts)
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-shadow hover:shadow-md hover:border-slate-300 dark:shadow-none dark:hover:border-slate-700">
